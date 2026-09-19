@@ -1,0 +1,64 @@
+{
+  "generated_at": "2026-09-19T11:19:39+00:00",
+  "instrument": "BTC-USDT",
+  "window_bars": 60,
+  "smooth_width": 5,
+  "timeframes": {
+    "5m": {
+      "kappa": 1.257451,
+      "n_eff": 3.57,
+      "n_turn": 8.12,
+      "consistency": 0.0024,
+      "efficiency_ratio": 0.1403,
+      "sigma_per_bar": 50.1824,
+      "last": 81312.5,
+      "state": "sharp",
+      "candle_ts": 1789816200000
+    },
+    "15m": {
+      "kappa": 1.245627,
+      "n_eff": 3.66,
+      "n_turn": 9.21,
+      "consistency": 0.006,
+      "efficiency_ratio": 0.0647,
+      "sigma_per_bar": 107.1657,
+      "last": 81312.5,
+      "state": "sharp",
+      "candle_ts": 1789815600000
+    },
+    "1H": {
+      "kappa": 1.130064,
+      "n_eff": 5.03,
+      "n_turn": 11.54,
+      "consistency": 0.0218,
+      "efficiency_ratio": 0.4658,
+      "sigma_per_bar": 335.4513,
+      "last": 81222.3,
+      "state": "normal",
+      "candle_ts": 1789812000000
+    },
+    "4H": {
+      "kappa": 1.152528,
+      "n_eff": 4.64,
+      "n_turn": 10.05,
+      "consistency": 0.0242,
+      "efficiency_ratio": 0.0859,
+      "sigma_per_bar": 523.4931,
+      "last": 81095.3,
+      "state": "sharp",
+      "candle_ts": 1789790400000
+    },
+    "1D": {
+      "kappa": 1.179007,
+      "n_eff": 4.29,
+      "n_turn": 10.75,
+      "consistency": 0.0479,
+      "efficiency_ratio": 0.2478,
+      "sigma_per_bar": 1464.4515,
+      "last": 80728.7,
+      "state": "sharp",
+      "candle_ts": 1789660800000
+    }
+  },
+  "errors": {}
+}
