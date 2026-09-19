@@ -1,0 +1,54 @@
+name: BTC N_eff
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      bars:
+        description: 'Timeframes (comma separated)'
+        required: false
+        default: '5m,15m,1H,4H,1D'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: neff
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Compute N_eff
+        env:
+          INST_ID: BTC-USDT
+          BARS: ${{ github.event.inputs.bars || '5m,15m,1H,4H,1D' }}
+          WINDOW: '60'
+          SMOOTH: '5'
+        run: python neff.py
+
+      - name: Commit results
+        run: |
+          set -euo pipefail
+          git config user.name  "neff-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "No change, nothing to commit."
+            exit 0
+          fi
+          N=$(python -c "import json;d=json.load(open('data/neff_latest.json'))['timeframes'];print(' '.join(f\"{k}={v['n_eff']}\" for k,v in d.items()))")
+          git commit -m "N_eff $N"
+          for i in 1 2 3; do
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" && git push && exit 0
+            echo "push attempt $i failed, retrying"; sleep 5
+          done
+          exit 1
