@@ -145,7 +145,11 @@ function tiles(tf){
     const t=el('div',{class:'tile',style:`--tc:var(${COL[b]})`});
     t.append(el('div',{class:'bar'},b));
     t.append(el('div',{class:'big'},String(d.n_eff)));
-    t.append(el('div',{class:'meta'},`κ ${d.kappa.toFixed(3)} · C ${d.consistency.toFixed(2)} · ER ${d.efficiency_ratio.toFixed(2)}`));
+    const cr=d.c_ratio;
+    t.append(el('div',{class:'meta'},`κ ${d.kappa.toFixed(3)} · ER ${d.efficiency_ratio.toFixed(2)}`));
+    t.append(el('div',{class:'meta'},
+      cr==null ? `C ${d.consistency.toFixed(3)}`
+               : `C ${d.consistency.toFixed(3)} = 随机的 ${cr.toFixed(1)}×`));
     t.append(el('div',{class:'meta'},`last ${Number(d.last).toLocaleString()}`));
     t.append(el('span',{class:'chip'},d.state));
     g.append(t);
@@ -184,7 +188,7 @@ function shapeCard(tf){
     g.append(box);
   });
   c.append(g);
-  c.append(el('p',{class:'note',html:'N_eff 是连续量,图形按<b>四舍五入</b>取整数边数:3.57 画成 4 边,4.64 也画成 5 边。所以相邻两个形状相同并不代表数值相同——<b>以数字为准,图形只给直觉</b>。真正要看的是从 5m 到 1D 边数是否逐级增多,那才说明大尺度更平滑。'}));
+  c.append(el('p',{class:'note',html:'N_eff 是连续量,图形按<b>四舍五入</b>取整数边数,所以两个数值不同的时间框架可能画成同一种形状——<b>以数字为准,图形只给直觉</b>。真正要看的是从 5m 到 1D 边数是否逐级增多,那才说明大尺度更平滑。'}));
   return c;
 }
 
@@ -237,12 +241,15 @@ function histCard(){
 function tableCard(tf){
   const c=el('div',{class:'card'});
   c.append(el('h2',{},'数据表'));
-  c.append(el('p',{class:'note'},'色彩不是唯一的识别途径——下表是同一份数据的完整数值。'));
+  const cn=Object.values(tf)[0]?.c_null;
+  c.append(el('p',{class:'note',html:'色彩不是唯一的识别途径——下表是同一份数据的完整数值。'
+    + (cn!=null ? `<br><b>C/随机</b> 是 C 相对随机游走零假设的倍数（同窗宽下 E[C]≈${cn.toFixed(4)}）。C 的量级本身依赖窗宽，单看 0.02 这个数字没有意义；接近 1× 表示与随机游走不可区分。` : '')}));
   const tb=el('table');
-  tb.innerHTML='<thead><tr><th>时间框架</th><th>N_eff</th><th>N_turn</th><th>κ</th><th>C</th><th>ER</th><th>收盘</th><th>状态</th></tr></thead>';
+  tb.innerHTML='<thead><tr><th>时间框架</th><th>N_eff</th><th>N_turn</th><th>κ</th><th>C</th><th>C/随机</th><th>ER</th><th>收盘</th><th>状态</th></tr></thead>';
   const bd=el('tbody');
   BARS.filter(b=>tf[b]).forEach(b=>{const d=tf[b];
-    bd.innerHTML+=`<tr><td>${b}</td><td>${d.n_eff}</td><td>${d.n_turn}</td><td>${d.kappa.toFixed(4)}</td><td>${d.consistency.toFixed(3)}</td><td>${d.efficiency_ratio.toFixed(3)}</td><td>${Number(d.last).toLocaleString()}</td><td>${d.state}</td></tr>`;});
+    const cr=d.c_ratio==null?'—':d.c_ratio.toFixed(2)+'×';
+    bd.innerHTML+=`<tr><td>${b}</td><td>${d.n_eff}</td><td>${d.n_turn}</td><td>${d.kappa.toFixed(4)}</td><td>${d.consistency.toFixed(3)}</td><td>${cr}</td><td>${d.efficiency_ratio.toFixed(3)}</td><td>${Number(d.last).toLocaleString()}</td><td>${d.state}</td></tr>`;});
   tb.append(bd);
   const w=el('div',{class:'tw'});w.append(tb);c.append(w);
   return c;

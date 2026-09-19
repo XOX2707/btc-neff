@@ -24,6 +24,7 @@ import csv
 import json
 import math
 import os
+import random
 import sys
 import urllib.request
 from datetime import datetime, timezone
@@ -104,11 +105,58 @@ def turning_angles(y):
     return taus
 
 
+def kappa_of(n):
+    """Perimeter ratio of a regular n-gon circumscribing a circle."""
+    return n * math.tan(math.pi / n) / math.pi
+
+
 def n_from_kappa(kappa):
-    """Invert kappa(N) = (N/pi)tan(pi/N) ~= 1 + pi^2/(3N^2)."""
+    """Invert kappa(N) numerically.
+
+    The closed form N = pi/sqrt(3(kappa-1)) comes from tan x ~ x + x^3/3 and
+    is only accurate for large N. At N=3 it understates by ~25% -- exactly the
+    regime a jagged price path sits in. kappa_of is strictly decreasing on
+    N > 2, so bisect instead of using the asymptotic form.
+    """
     if kappa <= 1 + 1e-12:
         return float("inf")
-    return math.pi / math.sqrt(3.0 * (kappa - 1.0))
+    lo, hi = 3.0, 1e4
+    if kappa >= kappa_of(lo):      # sharper than a triangle: not meaningful
+        return 3.0
+    for _ in range(100):
+        mid = (lo + hi) / 2.0
+        if kappa_of(mid) > kappa:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
+_CNULL = {}
+
+
+def c_null(n_points, trials=400, seed=20260919):
+    """E[C] for an iid-increment path of the same length.
+
+    C is not scale-free: its value under "no directional persistence at all"
+    depends on the window length, so a raw C of 0.02 means nothing until it is
+    compared against this baseline. Seeded, so it does not add run-to-run noise.
+    """
+    if n_points in _CNULL:
+        return _CNULL[n_points]
+    rnd = random.Random(seed)
+    tot, k = 0.0, 0
+    for _ in range(trials):
+        y = [0.0]
+        for _ in range(n_points - 1):
+            y.append(y[-1] + rnd.gauss(0, 1))
+        taus = turning_angles(y)
+        s = sum(abs(t) for t in taus)
+        if s > 0:
+            tot += abs(sum(taus)) / s
+            k += 1
+    _CNULL[n_points] = tot / k if k else 0.0
+    return _CNULL[n_points]
 
 
 def label(n_kappa, c):
@@ -143,9 +191,12 @@ def analyze(closes):
     def cap(x):
         return round(min(x, 999.0), 2) if math.isfinite(x) else 999.0
 
+    cn = c_null(len(w))
     return {
         "kappa": round(kappa, 6),
         "n_eff": cap(n_kappa),
+        "c_null": round(cn, 5),
+        "c_ratio": round(c / cn, 3) if cn > 0 else 0.0,
         "n_turn": cap(n_turn),
         "consistency": round(c, 4),
         "efficiency_ratio": round(er, 4),
@@ -159,7 +210,6 @@ def analyze(closes):
 
 def main():
     if "--selftest" in sys.argv:
-        import random
         random.seed(7)
         smooth = [100 + 20 * math.sin(i / 40) for i in range(200)]
         noisy = [p + random.gauss(0, 1.5) for p in smooth]
@@ -200,7 +250,8 @@ def main():
     hist = OUT / "neff_history.csv"
     new = not hist.exists()
     cols = ["generated_at", "instrument", "bar", "candle_ts", "last",
-            "kappa", "n_eff", "n_turn", "consistency", "efficiency_ratio", "state"]
+            "kappa", "n_eff", "n_turn", "consistency", "c_null", "c_ratio",
+            "efficiency_ratio", "state"]
     with hist.open("a", newline="", encoding="utf-8") as f:
         wr = csv.DictWriter(f, fieldnames=cols)
         if new:
