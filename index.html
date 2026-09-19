@@ -43,6 +43,10 @@ h2{font-size:15px;font-weight:500;margin:0 0 10px}
 .tile .big{font-size:30px;font-weight:500;line-height:1.15;margin:2px 0 0;font-variant-numeric:tabular-nums}
 .tile .meta{font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums;margin-top:4px}
 .chip{display:inline-block;margin-top:7px;font-size:12px;padding:1px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-secondary)}
+.shapes{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px}
+.shape{text-align:center}
+.shape .cap{font-size:12px;color:var(--text-secondary);margin-top:2px}
+.shape .val{font-size:15px;color:var(--text-primary);font-variant-numeric:tabular-nums}
 .legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px;font-size:13px;color:var(--text-secondary)}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .sw{width:11px;height:11px;border-radius:3px;flex:none}
@@ -149,6 +153,41 @@ function tiles(tf){
   return g;
 }
 
+// Circle radius is fixed; the polygon circumscribes it, so the visible gap
+// between the two IS kappa — the perimeter excess the metric is built on.
+function polygonSVG(nEff,colorVar){
+  const V=130,C=65,r=28;
+  const n=Math.max(3,Math.round(nEff));
+  const R=r/Math.cos(Math.PI/n);
+  const svg=s('svg',{viewBox:`0 0 ${V} ${V}`,role:'img','aria-label':`约 ${n} 边形`});
+  svg.append(s('circle',{cx:C,cy:C,r,fill:'none',stroke:cvar('--grid'),'stroke-width':1.5}));
+  const pts=[];
+  for(let k=0;k<n;k++){const a=-Math.PI/2+2*Math.PI*k/n;
+    pts.push(`${(C+R*Math.cos(a)).toFixed(2)},${(C+R*Math.sin(a)).toFixed(2)}`);}
+  svg.append(s('polygon',{points:pts.join(' '),fill:'none',stroke:cvar(colorVar),
+    'stroke-width':2,'stroke-linejoin':'round'}));
+  return svg;
+}
+
+function shapeCard(tf){
+  const bs=BARS.filter(b=>tf[b]); if(!bs.length)return null;
+  const c=el('div',{class:'card'});
+  c.append(el('h2',{},'当前的边数'));
+  c.append(el('p',{class:'note'},'灰色的圆是基准,彩色多边形按各时间框架的 N_eff 画出。多边形比圆多出来的周长就是 κ——边数越少,它离圆越远。'));
+  const g=el('div',{class:'shapes'});
+  bs.forEach(b=>{
+    const d=tf[b],n=Math.max(3,Math.round(d.n_eff));
+    const box=el('div',{class:'shape'});
+    box.append(polygonSVG(d.n_eff,COL[b]));
+    box.append(el('div',{class:'val'},`${b} · ${d.n_eff}`));
+    box.append(el('div',{class:'cap'},`画作 ${n} 边 · κ ${d.kappa.toFixed(3)}`));
+    g.append(box);
+  });
+  c.append(g);
+  c.append(el('p',{class:'note',html:'N_eff 是连续量,图形按<b>四舍五入</b>取整数边数:3.57 画成 4 边,4.64 也画成 5 边。所以相邻两个形状相同并不代表数值相同——<b>以数字为准,图形只给直觉</b>。真正要看的是从 5m 到 1D 边数是否逐级增多,那才说明大尺度更平滑。'}));
+  return c;
+}
+
 function decayCard(tf){
   const bs=BARS.filter(b=>tf[b]); if(bs.length<2)return null;
   const vals=bs.map(b=>tf[b].n_eff);
@@ -238,6 +277,7 @@ function render(){
   }
   const tf=window.LATEST.timeframes||{};
   app.append(tiles(tf));
+  const sc=shapeCard(tf); if(sc)app.append(sc);
   const dc=decayCard(tf); if(dc)app.append(dc);
   if(HIST&&Object.values(HIST.byBar).some(v=>v.length>1))app.append(histCard());
   app.append(tableCard(tf));
