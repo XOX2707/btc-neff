@@ -61,7 +61,13 @@ jobs:
               exit 0
             fi
 
-            N=$(python -c "import json;d=json.load(open('data/neff_latest.json'))['timeframes'];print(' '.join(f\"{k}={v['n_eff']}\" for k,v in d.items()))")
+            # Cosmetic only. This used to be an inline python -c reading
+            # d['timeframes']; when the JSON grew an `instruments` layer it
+            # raised KeyError and took five runs down with it. commit_msg.py
+            # understands both shapes and never raises -- and the || guard
+            # means even that cannot fail the run.
+            N=$(python commit_msg.py) || N="update"
+            [ -z "$N" ] && N="update"
             git commit -q -m "N_eff $N"
 
             if git push origin "HEAD:$BR"; then
