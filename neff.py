@@ -1,23 +1,33 @@
 #!/usr/bin/env python3
 """
-OKX -> N_eff: polygon-equivalent smoothness of the BTC price curve.
+OKX -> N_eff: polygon-equivalent smoothness of a price curve.
 
 Zero dependencies (stdlib only). Fetches closed candles from OKX public
-market-data API, normalises the path, and derives:
+market-data API for one or more instruments, normalises each path, and derives:
 
   kappa   = raw path length / smoothed path length   (circumscribed-polygon ratio)
-  N_kappa = pi / sqrt(3 * (kappa - 1))               (equivalent number of sides)
+  N_eff   = numerical inversion of kappa(N)=(N/pi)tan(pi/N)
   N_turn  = 2*pi / mean(|turning angle|)             (cross-check)
   C       = |sum(tau)| / sum(|tau|)                  (turn-direction consistency)
+  c_null  = E[C] for an iid path of the same length  (the "no persistence" baseline)
+  c_ratio = C / c_null                               (C is meaningless without this)
   ER      = |net move| / sum(|move|)                 (Kaufman efficiency ratio)
 
 Env vars:
   OKX_BASE   comma-separated API hosts to try in order
-  INST_ID    instrument, default BTC-USDT
+  INST_IDS   comma-separated instruments, e.g. BTC-USDT,BTC-USDT-SWAP,ETH-USDT-SWAP
+             (INST_ID is still honoured for backwards compatibility)
   BARS       comma-separated timeframes, default 5m,15m,1H,4H,1D
   WINDOW     bars per analysis window, default 60
   SMOOTH     centred moving-average width used as the smooth baseline, default 5
+  REQ_DELAY  seconds to sleep between API calls, default 0.15
   OUT_DIR    output directory, default data
+
+Modes:
+  python neff.py                 fetch and write data/
+  python neff.py --selftest      synthetic-data sanity check, no network
+  python neff.py --list-swaps    print the live USDT-settled perpetuals you can
+                                 put in INST_IDS (they end in -SWAP)
 """
 
 import csv
@@ -26,6 +36,8 @@ import math
 import os
 import random
 import sys
+import time
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,10 +46,15 @@ BASES = [b.strip() for b in os.getenv(
     "OKX_BASE",
     "https://www.okx.com,https://aws.okx.com,https://openapi.okx.com",
 ).split(",") if b.strip()]
-INST = os.getenv("INST_ID", "BTC-USDT")
+
+# INST_IDS is the new plural form; INST_ID stays valid so existing configs work.
+INSTS = [s.strip() for s in os.getenv(
+    "INST_IDS", os.getenv("INST_ID", "BTC-USDT")).split(",") if s.strip()]
+
 BARS = [b.strip() for b in os.getenv("BARS", "5m,15m,1H,4H,1D").split(",") if b.strip()]
 WINDOW = int(os.getenv("WINDOW", "60"))
 SMOOTH = int(os.getenv("SMOOTH", "5"))
+REQ_DELAY = float(os.getenv("REQ_DELAY", "0.15"))
 OUT = Path(os.getenv("OUT_DIR", "data"))
 
 
@@ -49,26 +66,52 @@ def http_json(url, timeout=20):
         return json.loads(r.read().decode())
 
 
-def fetch_closes(bar, limit):
-    """Return (timestamps_ms, closes) ascending, confirmed candles only."""
+def okx_get(path, params, timeout=20):
+    """GET a public endpoint, trying each host in turn."""
+    q = urllib.parse.urlencode(params)
     err = "no host tried"
     for base in BASES:
-        url = f"{base}/api/v5/market/candles?instId={INST}&bar={bar}&limit={limit}"
         try:
-            j = http_json(url)
+            j = http_json(f"{base}{path}?{q}", timeout=timeout)
         except Exception as e:
             err = f"{base} -> {e!r}"
             continue
         if j.get("code") != "0":
             err = f"{base} -> code={j.get('code')} msg={j.get('msg')}"
             continue
-        rows = [r for r in j.get("data", []) if len(r) < 9 or r[8] == "1"]
-        rows.sort(key=lambda r: int(r[0]))
-        if len(rows) < 12:
-            err = f"{base} -> only {len(rows)} confirmed candles"
-            continue
-        return [int(r[0]) for r in rows], [float(r[4]) for r in rows]
-    raise RuntimeError(f"OKX fetch failed for bar={bar}: {err}")
+        return j.get("data", [])
+    raise RuntimeError(f"OKX {path} failed: {err}")
+
+
+def fetch_closes(inst, bar, limit):
+    """Return (timestamps_ms, closes) ascending, confirmed candles only."""
+    rows = okx_get("/api/v5/market/candles",
+                   {"instId": inst, "bar": bar, "limit": limit})
+    rows = [r for r in rows if len(r) < 9 or r[8] == "1"]
+    rows.sort(key=lambda r: int(r[0]))
+    if len(rows) < 12:
+        raise RuntimeError(f"only {len(rows)} confirmed candles for {inst} {bar}")
+    return [int(r[0]) for r in rows], [float(r[4]) for r in rows]
+
+
+def list_swaps():
+    """Print live perpetuals. Their instId is what goes in INST_IDS."""
+    data = okx_get("/api/v5/public/instruments", {"instType": "SWAP"})
+    live = [d for d in data if d.get("state") == "live"]
+    by_settle = {}
+    for d in live:
+        by_settle.setdefault(d.get("settleCcy", "?"), []).append(d["instId"])
+    print(f"{len(live)} live perpetuals\n")
+    for ccy in sorted(by_settle, key=lambda c: -len(by_settle[c])):
+        ids = sorted(by_settle[ccy])
+        print(f"--- settled in {ccy} ({len(ids)}) ---")
+        for i in range(0, len(ids), 4):
+            print("  " + "  ".join(f"{x:<22}" for x in ids[i:i + 4]))
+        print()
+    print("Put a comma-separated subset in INST_IDS, e.g.")
+    print("  INST_IDS='BTC-USDT-SWAP,ETH-USDT-SWAP,SOL-USDT-SWAP'")
+    print("\nEach instrument costs one API call per timeframe per run, so a long")
+    print("list makes runs slow and the history file large. Pick what you watch.")
 
 
 # ---------- geometry ----------
@@ -208,39 +251,57 @@ def analyze(closes):
 
 # ---------- output ----------
 
+COLS = ["generated_at", "instrument", "bar", "candle_ts", "last",
+        "kappa", "n_eff", "n_turn", "consistency", "c_null", "c_ratio",
+        "efficiency_ratio", "state"]
+
+
+def selftest():
+    random.seed(7)
+    smooth = [100 + 20 * math.sin(i / 40) for i in range(200)]
+    noisy = [p + random.gauss(0, 1.5) for p in smooth]
+    print("smooth series:", analyze(smooth))
+    print("noisy  series:", analyze(noisy))
+    print("\ninversion regression (should return N exactly):")
+    for N in (3, 5, 12, 50):
+        print(f"  N={N:>3} -> {n_from_kappa(kappa_of(N)):.4f}")
+
+
 def main():
     if "--selftest" in sys.argv:
-        random.seed(7)
-        smooth = [100 + 20 * math.sin(i / 40) for i in range(200)]
-        noisy = [p + random.gauss(0, 1.5) for p in smooth]
-        print("smooth series:", analyze(smooth))
-        print("noisy  series:", analyze(noisy))
-        return
+        return selftest()
+    if "--list-swaps" in sys.argv:
+        return list_swaps()
 
     now = datetime.now(timezone.utc)
     result = {
         "generated_at": now.isoformat(timespec="seconds"),
-        "instrument": INST,
+        "instruments": {},
         "window_bars": WINDOW,
         "smooth_width": SMOOTH,
-        "timeframes": {},
-        "errors": {},
     }
 
-    for bar in BARS:
-        try:
-            ts, closes = fetch_closes(bar, max(WINDOW + 20, 100))
-            row = analyze(closes)
-            row["candle_ts"] = ts[-1]
-            result["timeframes"][bar] = row
-            print(f"{bar}: N_eff={row['n_eff']} kappa={row['kappa']} "
-                  f"C={row['consistency']} state={row['state']}")
-        except Exception as e:
-            result["errors"][bar] = str(e)
-            print(f"{bar}: FAILED {e}", file=sys.stderr)
+    first = True
+    for inst in INSTS:
+        entry = {"timeframes": {}, "errors": {}}
+        for bar in BARS:
+            if not first:
+                time.sleep(REQ_DELAY)   # stay well inside the public rate limit
+            first = False
+            try:
+                ts, closes = fetch_closes(inst, bar, max(WINDOW + 20, 100))
+                row = analyze(closes)
+                row["candle_ts"] = ts[-1]
+                entry["timeframes"][bar] = row
+                print(f"{inst} {bar}: N_eff={row['n_eff']} "
+                      f"C/null={row['c_ratio']} {row['state']}")
+            except Exception as e:
+                entry["errors"][bar] = str(e)
+                print(f"{inst} {bar}: FAILED {e}", file=sys.stderr)
+        result["instruments"][inst] = entry
 
-    if not result["timeframes"]:
-        raise SystemExit("all timeframes failed; refusing to write empty output")
+    if not any(v["timeframes"] for v in result["instruments"].values()):
+        raise SystemExit("every instrument failed; refusing to write empty output")
 
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "neff_latest.json").write_text(
@@ -249,19 +310,17 @@ def main():
 
     hist = OUT / "neff_history.csv"
     new = not hist.exists()
-    cols = ["generated_at", "instrument", "bar", "candle_ts", "last",
-            "kappa", "n_eff", "n_turn", "consistency", "c_null", "c_ratio",
-            "efficiency_ratio", "state"]
     with hist.open("a", newline="", encoding="utf-8") as f:
-        wr = csv.DictWriter(f, fieldnames=cols)
+        wr = csv.DictWriter(f, fieldnames=COLS)
         if new:
             wr.writeheader()
-        for bar, row in result["timeframes"].items():
-            wr.writerow({
-                "generated_at": result["generated_at"],
-                "instrument": INST, "bar": bar,
-                **{k: row[k] for k in cols[3:]},
-            })
+        for inst, entry in result["instruments"].items():
+            for bar, row in entry["timeframes"].items():
+                wr.writerow({
+                    "generated_at": result["generated_at"],
+                    "instrument": inst, "bar": bar,
+                    **{k: row[k] for k in COLS[3:]},
+                })
 
 
 if __name__ == "__main__":

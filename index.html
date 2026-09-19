@@ -80,6 +80,8 @@ const COL={'5m':'--s1','15m':'--s2','1H':'--s3','4H':'--s4','1D':'--s5'};
 const cvar=k=>getComputedStyle(document.documentElement).getPropertyValue(k).trim();
 const el=(t,a={},...k)=>{const n=document.createElement(t);for(const[p,v]of Object.entries(a))p==='html'?n.innerHTML=v:n.setAttribute(p,v);k.forEach(c=>n.append(c));return n};
 const bust=u=>u+(u.includes('?')?'&':'?')+'t='+Date.now();
+const fmtPx=v=>{const a=Math.abs(v);const d=a>=1000?2:a>=10?3:a>=0.1?4:6;
+  return Number(v).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:d});};
 const tip=document.getElementById('tip');
 const showTip=(x,y,h)=>{tip.innerHTML=h;tip.style.opacity=1;const r=tip.getBoundingClientRect();
   tip.style.left=Math.min(Math.max(8,x-r.width/2),innerWidth-r.width-8)+'px';
@@ -150,7 +152,7 @@ function tiles(tf){
     t.append(el('div',{class:'meta'},
       cr==null ? `C ${d.consistency.toFixed(3)}`
                : `C ${d.consistency.toFixed(3)} = 随机的 ${cr.toFixed(1)}×`));
-    t.append(el('div',{class:'meta'},`last ${Number(d.last).toLocaleString()}`));
+    t.append(el('div',{class:'meta'},`last ${fmtPx(d.last)}`));
     t.append(el('span',{class:'chip'},d.state));
     g.append(t);
   });
@@ -209,7 +211,29 @@ function decayCard(tf){
   return c;
 }
 
-let HIST=null,RANGE='7d';
+let HIST=null,RANGE='7d',INST=null;
+
+// The payload used to carry a single instrument's timeframes at the top level.
+// Normalise both shapes so an old data file still renders.
+function instrumentMap(){
+  const L=window.LATEST; if(!L)return{};
+  if(L.instruments)return L.instruments;
+  if(L.timeframes)return{[L.instrument||'—']:{timeframes:L.timeframes,errors:L.errors||{}}};
+  return{};
+}
+function instPicker(names){
+  if(names.length<2)return null;
+  const c=el('div',{class:'card'});
+  c.append(el('h2',{},'合约'));
+  const ctl=el('div',{class:'ctl'});
+  names.forEach(n=>{
+    const b=el('button',{type:'button','aria-pressed':String(n===INST)},n);
+    b.onclick=()=>{INST=n;render();};ctl.append(b);
+  });
+  c.append(ctl);
+  return c;
+}
+
 function histCard(){
   const c=el('div',{class:'card'});
   c.append(el('h2',{},'N_eff 历史'));
@@ -219,14 +243,15 @@ function histCard(){
     b.onclick=()=>{RANGE=k;render();};ctl.append(b);
   });
   c.append(ctl);
+  const hb=(HIST.byInst&&HIST.byInst[INST])||{};
   const lg=el('div',{class:'legend'});
-  BARS.forEach(b=>{if(!HIST.byBar[b]?.length)return;
+  BARS.forEach(b=>{if(!hb[b]?.length)return;
     lg.append(el('span',{},el('i',{class:'sw',style:`background:var(${COL[b]})`}),b));});
   c.append(lg);
   const cut=RANGE==='24h'?864e5:RANGE==='7d'?6048e5:Infinity;
   const now=Date.now();
-  const series=BARS.filter(b=>HIST.byBar[b]?.length).map(b=>({name:b,color:COL[b],
-    points:HIST.byBar[b].filter(r=>now-r.t<=cut).map(r=>({x:r.t,y:r.n_eff}))})).filter(x=>x.points.length);
+  const series=BARS.filter(b=>hb[b]?.length).map(b=>({name:b,color:COL[b],
+    points:hb[b].filter(r=>now-r.t<=cut).map(r=>({x:r.t,y:r.n_eff}))})).filter(x=>x.points.length);
   if(!series.length){c.append(el('p',{class:'note'},'该区间暂无数据。'));return c;}
   const xs=series.flatMap(x=>x.points.map(p=>p.x)),ys=series.flatMap(x=>x.points.map(p=>p.y));
   const x0=Math.min(...xs),x1=Math.max(...xs),span=x1-x0||1;
@@ -249,7 +274,7 @@ function tableCard(tf){
   const bd=el('tbody');
   BARS.filter(b=>tf[b]).forEach(b=>{const d=tf[b];
     const cr=d.c_ratio==null?'—':d.c_ratio.toFixed(2)+'×';
-    bd.innerHTML+=`<tr><td>${b}</td><td>${d.n_eff}</td><td>${d.n_turn}</td><td>${d.kappa.toFixed(4)}</td><td>${d.consistency.toFixed(3)}</td><td>${cr}</td><td>${d.efficiency_ratio.toFixed(3)}</td><td>${Number(d.last).toLocaleString()}</td><td>${d.state}</td></tr>`;});
+    bd.innerHTML+=`<tr><td>${b}</td><td>${d.n_eff}</td><td>${d.n_turn}</td><td>${d.kappa.toFixed(4)}</td><td>${d.consistency.toFixed(3)}</td><td>${cr}</td><td>${d.efficiency_ratio.toFixed(3)}</td><td>${fmtPx(d.last)}</td><td>${d.state}</td></tr>`;});
   tb.append(bd);
   const w=el('div',{class:'tw'});w.append(tb);c.append(w);
   return c;
@@ -282,27 +307,37 @@ function render(){
       '若运行失败于最后的提交步骤，多半是 <b>Settings → Actions → General → Workflow permissions</b> 还没设成 <b>Read and write</b>。'));
     return;
   }
-  const tf=window.LATEST.timeframes||{};
+  const im=instrumentMap(), names=Object.keys(im);
+  if(!names.length){app.append(empty('数据格式异常','读到了文件，但里面没有任何合约。'));return;}
+  if(!INST||!im[INST])INST=names[0];
+  const pick=instPicker(names); if(pick)app.append(pick);
+  const tf=im[INST].timeframes||{};
   app.append(tiles(tf));
   const sc=shapeCard(tf); if(sc)app.append(sc);
   const dc=decayCard(tf); if(dc)app.append(dc);
-  if(HIST&&Object.values(HIST.byBar).some(v=>v.length>1))app.append(histCard());
+  const hb=(HIST&&HIST.byInst&&HIST.byInst[INST])||{};
+  if(Object.values(hb).some(v=>v.length>1))app.append(histCard());
   app.append(tableCard(tf));
-  const errs=window.LATEST.errors||{};
+  const errs=im[INST].errors||{};
   if(Object.keys(errs).length)app.append(empty('部分时间框架抓取失败',
     Object.entries(errs).map(([k,v])=>`<b>${k}</b>: ${String(v).replace(/</g,'&lt;')}`).join('<br>')));
   app.append(glossary());
 }
 
 function parseCSV(t){
-  const ln=t.trim().split(/\r?\n/);if(ln.length<2)return{byBar:{}};
-  const h=ln[0].split(',');const iB=h.indexOf('bar'),iN=h.indexOf('n_eff'),iG=h.indexOf('generated_at');
-  const byBar={};BARS.forEach(b=>byBar[b]=[]);
-  for(let i=1;i<ln.length;i++){const c=ln[i].split(',');const b=c[iB];
-    if(!byBar[b])continue;const t2=Date.parse(c[iG]),y=parseFloat(c[iN]);
-    if(isFinite(t2)&&isFinite(y))byBar[b].push({t:t2,n_eff:y});}
-  Object.values(byBar).forEach(a=>a.sort((p,q)=>p.t-q.t));
-  return{byBar};
+  const ln=t.trim().split(/\r?\n/);if(ln.length<2)return{byInst:{}};
+  const h=ln[0].split(',');
+  const iB=h.indexOf('bar'),iN=h.indexOf('n_eff'),iG=h.indexOf('generated_at'),iI=h.indexOf('instrument');
+  const byInst={};
+  for(let i=1;i<ln.length;i++){const c=ln[i].split(',');
+    const inst=(iI>=0?c[iI]:'—')||'—', b=c[iB];
+    if(!BARS.includes(b))continue;
+    const t2=Date.parse(c[iG]),y=parseFloat(c[iN]);
+    if(!isFinite(t2)||!isFinite(y))continue;
+    (byInst[inst]=byInst[inst]||{})[b]=(byInst[inst][b]||[]);
+    byInst[inst][b].push({t:t2,n_eff:y});}
+  Object.values(byInst).forEach(o=>Object.values(o).forEach(a=>a.sort((p,q)=>p.t-q.t)));
+  return{byInst};
 }
 
 async function load(){
@@ -317,7 +352,8 @@ async function load(){
   }catch(e){HIST=null;}
   if(window.LATEST){
     const d=new Date(window.LATEST.generated_at);
-    sub.textContent=`${window.LATEST.instrument} · 窗口 ${window.LATEST.window_bars} 根 · 更新于 ${d.toLocaleString()}`;
+    const n=Object.keys(instrumentMap()).length;
+    sub.textContent=`${n} 个合约 · 窗口 ${window.LATEST.window_bars} 根 · 更新于 ${d.toLocaleString()}`;
   }else sub.textContent='等待首次运行';
   render();
 }
