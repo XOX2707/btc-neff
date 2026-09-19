@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BTC N_eff</title>
+<style>
+:root{
+  color-scheme: light;
+  --surface-0:#f4f4f2; --surface-1:#fcfcfb;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#73726c;
+  --border:#e0dfdb; --grid:#ebeae6;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --surface-0:#111110; --surface-1:#1a1a19;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#9c9a92;
+    --border:#33332f; --grid:#2a2a27;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --surface-0:#111110; --surface-1:#1a1a19;
+  --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#9c9a92;
+  --border:#33332f; --grid:#2a2a27;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; padding:16px; background:var(--surface-0); color:var(--text-primary);
+  font:400 15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:900px;margin:0 auto}
+h1{font-size:20px;font-weight:500;margin:0 0 2px}
+h2{font-size:15px;font-weight:500;margin:0 0 10px}
+.sub{color:var(--text-secondary);font-size:13px;margin:0 0 18px}
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:12px 14px;border-top:3px solid var(--tc,var(--s1))}
+.tile .bar{font-size:12px;color:var(--text-secondary);letter-spacing:.04em}
+.tile .big{font-size:30px;font-weight:500;line-height:1.15;margin:2px 0 0;font-variant-numeric:tabular-nums}
+.tile .meta{font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums;margin-top:4px}
+.chip{display:inline-block;margin-top:7px;font-size:12px;padding:1px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-secondary)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px;font-size:13px;color:var(--text-secondary)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:11px;height:11px;border-radius:3px;flex:none}
+.ctl{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.ctl button{font:inherit;font-size:13px;padding:4px 12px;border:1px solid var(--border);background:var(--surface-1);color:var(--text-secondary);border-radius:999px;cursor:pointer}
+.ctl button[aria-pressed=true]{color:var(--text-primary);border-color:var(--text-muted)}
+svg{display:block;width:100%;height:auto;overflow:visible}
+.gl{stroke:var(--grid);stroke-width:1}
+.ax{fill:var(--text-muted);font-size:11px}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--text-secondary);font-weight:500}
+.note{font-size:13px;color:var(--text-secondary)}
+.note code{background:var(--surface-0);padding:1px 5px;border-radius:4px;font-size:12px}
+details{margin-top:4px} summary{cursor:pointer;color:var(--text-secondary);font-size:13px}
+.tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .1s;background:var(--surface-1);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;box-shadow:0 2px 10px rgba(0,0,0,.14);z-index:9;font-variant-numeric:tabular-nums}
+</style>
+
+<div class="wrap">
+  <h1>BTC N_eff</h1>
+  <p class="sub" id="sub">加载中…</p>
+  <div id="app"></div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const BARS=['5m','15m','1H','4H','1D'];
+const COL={'5m':'--s1','15m':'--s2','1H':'--s3','4H':'--s4','1D':'--s5'};
+const cvar=k=>getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+const el=(t,a={},...k)=>{const n=document.createElement(t);for(const[p,v]of Object.entries(a))p==='html'?n.innerHTML=v:n.setAttribute(p,v);k.forEach(c=>n.append(c));return n};
+const bust=u=>u+(u.includes('?')?'&':'?')+'t='+Date.now();
+const tip=document.getElementById('tip');
+const showTip=(x,y,h)=>{tip.innerHTML=h;tip.style.opacity=1;const r=tip.getBoundingClientRect();
+  tip.style.left=Math.min(Math.max(8,x-r.width/2),innerWidth-r.width-8)+'px';
+  tip.style.top=(y-r.height-12<8?y+16:y-r.height-12)+'px';};
+const hideTip=()=>tip.style.opacity=0;
+
+const SVGNS='http://www.w3.org/2000/svg';
+const s=(t,a={})=>{const n=document.createElementNS(SVGNS,t);for(const[p,v]of Object.entries(a))n.setAttribute(p,v);return n};
+
+const narrow=()=>innerWidth<560;
+function lineChart({series,xTicks,xOf,yMin,yMax,h=210,yLabel='',dots=false,fmtX}){
+  const nw=narrow();
+  const W=nw?360:700, FS=nw?11:11, PL=nw?34:44, PR=nw?12:16, PT=nw?14:12, PB=nw?24:26;
+  if(nw)h=Math.round(h*0.92);
+  const iw=W-PL-PR,ih=h-PT-PB;
+  const svg=s('svg',{viewBox:`0 0 ${W} ${h}`,role:'img','aria-label':yLabel});
+  const X=v=>PL+xOf(v)*iw, Y=v=>PT+ih-((v-yMin)/(yMax-yMin||1))*ih;
+  const ticks=4;
+  for(let i=0;i<=ticks;i++){const v=yMin+(yMax-yMin)*i/ticks,y=Y(v);
+    svg.append(s('line',{x1:PL,x2:PL+iw,y1:y,y2:y,class:'gl'}));
+    const t=s('text',{x:PL-6,y:y+4,class:'ax','text-anchor':'end','font-size':FS});t.textContent=v.toFixed(v<10?1:0);svg.append(t);}
+  xTicks.forEach(({v,label},i)=>{
+    const a=i===0?'start':i===xTicks.length-1?'end':'middle';
+    const t=s('text',{x:X(v),y:h-7,class:'ax','text-anchor':a,'font-size':FS});t.textContent=label;svg.append(t);});
+  series.forEach(se=>{
+    const pts=se.points.filter(p=>isFinite(p.y));
+    if(!pts.length)return;
+    const d=pts.map((p,i)=>(i?'L':'M')+X(p.x).toFixed(1)+' '+Y(p.y).toFixed(1)).join(' ');
+    svg.append(s('path',{d,fill:'none',stroke:cvar(se.color),'stroke-width':2,'stroke-linejoin':'round','stroke-linecap':'round'}));
+    if(dots)pts.forEach(p=>{
+      const c=s('circle',{cx:X(p.x),cy:Y(p.y),r:5,fill:cvar(se.color),stroke:cvar('--surface-1'),'stroke-width':2});
+      c.style.cursor='pointer';
+      c.addEventListener('pointerenter',e=>showTip(e.clientX,e.clientY,p.tip));
+      c.addEventListener('pointerleave',hideTip);
+      svg.append(c);
+      if(p.label!=null){
+        const lx=Math.min(Math.max(X(p.x),PL+14),PL+iw-14);
+        const t=s('text',{x:lx,y:Y(p.y)-13,class:'ax','text-anchor':'middle',fill:cvar('--text-primary')});
+        t.setAttribute('font-size',String(FS+1));t.textContent=p.label;svg.append(t);}
+    });
+  });
+  if(!dots&&series.length){
+    svg.addEventListener('pointerleave',hideTip);
+    svg.addEventListener('pointermove',ev=>{
+      const r=svg.getBoundingClientRect(),px=(ev.clientX-r.left)/r.width*W;
+      if(px<PL||px>PL+iw)return hideTip();
+      const f=(px-PL)/iw;
+      let best=null;
+      series.forEach(se=>se.points.forEach(p=>{const dd=Math.abs(xOf(p.x)-f);if(!best||dd<best.d)best={d:dd,p};}));
+      if(!best)return;
+      const rows=series.map(se=>{const p=se.points.find(q=>q.x===best.p.x);
+        return p?`<div style="display:flex;gap:8px;align-items:center"><span style="width:9px;height:9px;border-radius:2px;background:${cvar(se.color)}"></span>${se.name} <b>${p.y.toFixed(2)}</b></div>`:''}).join('');
+      showTip(ev.clientX,ev.clientY,`<div style="color:var(--text-secondary);margin-bottom:4px">${fmtX(best.p.x)}</div>${rows}`);
+    });
+  }
+  return svg;
+}
+
+function tiles(tf){
+  const g=el('div',{class:'tiles'});
+  BARS.filter(b=>tf[b]).forEach(b=>{
+    const d=tf[b];
+    const t=el('div',{class:'tile',style:`--tc:var(${COL[b]})`});
+    t.append(el('div',{class:'bar'},b));
+    t.append(el('div',{class:'big'},String(d.n_eff)));
+    t.append(el('div',{class:'meta'},`κ ${d.kappa.toFixed(3)} · C ${d.consistency.toFixed(2)} · ER ${d.efficiency_ratio.toFixed(2)}`));
+    t.append(el('div',{class:'meta'},`last ${Number(d.last).toLocaleString()}`));
+    t.append(el('span',{class:'chip'},d.state));
+    g.append(t);
+  });
+  return g;
+}
+
+function decayCard(tf){
+  const bs=BARS.filter(b=>tf[b]); if(bs.length<2)return null;
+  const vals=bs.map(b=>tf[b].n_eff);
+  const lo=Math.min(...vals),hi=Math.max(...vals),pad=(hi-lo||1)*0.25;
+  const c=el('div',{class:'card'});
+  c.append(el('h2',{},'N_eff 随时间框架的衰减'));
+  c.append(el('p',{class:'note'},'多边形趋近圆本身是个尺度极限。这条曲线比任何单点数值都有信息量——向右上说明大尺度更平滑,趋于水平说明各尺度自相似。'));
+  c.append(lineChart({
+    series:[{name:'N_eff',color:'--s1',points:bs.map((b,i)=>({x:i,y:tf[b].n_eff,label:tf[b].n_eff,
+      tip:`<b>${b}</b><br>N_eff ${tf[b].n_eff} · C ${tf[b].consistency}<br>${tf[b].state}`}))}],
+    xTicks:bs.map((b,i)=>({v:i,label:b})),
+    xOf:v=>bs.length>1?v/(bs.length-1):0.5,
+    yMin:Math.max(0,lo-pad),yMax:hi+pad,dots:true,yLabel:'N_eff by timeframe'
+  }));
+  return c;
+}
+
+let HIST=null,RANGE='7d';
+function histCard(){
+  const c=el('div',{class:'card'});
+  c.append(el('h2',{},'N_eff 历史'));
+  const ctl=el('div',{class:'ctl'});
+  [['24h','24 小时'],['7d','7 天'],['all','全部']].forEach(([k,lab])=>{
+    const b=el('button',{type:'button','aria-pressed':String(k===RANGE)},lab);
+    b.onclick=()=>{RANGE=k;render();};ctl.append(b);
+  });
+  c.append(ctl);
+  const lg=el('div',{class:'legend'});
+  BARS.forEach(b=>{if(!HIST.byBar[b]?.length)return;
+    lg.append(el('span',{},el('i',{class:'sw',style:`background:var(${COL[b]})`}),b));});
+  c.append(lg);
+  const cut=RANGE==='24h'?864e5:RANGE==='7d'?6048e5:Infinity;
+  const now=Date.now();
+  const series=BARS.filter(b=>HIST.byBar[b]?.length).map(b=>({name:b,color:COL[b],
+    points:HIST.byBar[b].filter(r=>now-r.t<=cut).map(r=>({x:r.t,y:r.n_eff}))})).filter(x=>x.points.length);
+  if(!series.length){c.append(el('p',{class:'note'},'该区间暂无数据。'));return c;}
+  const xs=series.flatMap(x=>x.points.map(p=>p.x)),ys=series.flatMap(x=>x.points.map(p=>p.y));
+  const x0=Math.min(...xs),x1=Math.max(...xs),span=x1-x0||1;
+  const lo=Math.min(...ys),hi=Math.max(...ys),pad=(hi-lo||1)*0.15;
+  const nT=4,xT=[];for(let i=0;i<=nT;i++){const v=x0+span*i/nT;
+    xT.push({v,label:new Date(v).toLocaleString([], span>1728e5?{month:'numeric',day:'numeric'}:{hour:'2-digit',minute:'2-digit'})});}
+  c.append(lineChart({series,xTicks:xT,xOf:v=>(v-x0)/span,yMin:Math.max(0,lo-pad),yMax:hi+pad,h:230,
+    yLabel:'N_eff history',fmtX:v=>new Date(v).toLocaleString()}));
+  return c;
+}
+
+function tableCard(tf){
+  const c=el('div',{class:'card'});
+  c.append(el('h2',{},'数据表'));
+  c.append(el('p',{class:'note'},'色彩不是唯一的识别途径——下表是同一份数据的完整数值。'));
+  const tb=el('table');
+  tb.innerHTML='<thead><tr><th>时间框架</th><th>N_eff</th><th>N_turn</th><th>κ</th><th>C</th><th>ER</th><th>收盘</th><th>状态</th></tr></thead>';
+  const bd=el('tbody');
+  BARS.filter(b=>tf[b]).forEach(b=>{const d=tf[b];
+    bd.innerHTML+=`<tr><td>${b}</td><td>${d.n_eff}</td><td>${d.n_turn}</td><td>${d.kappa.toFixed(4)}</td><td>${d.consistency.toFixed(3)}</td><td>${d.efficiency_ratio.toFixed(3)}</td><td>${Number(d.last).toLocaleString()}</td><td>${d.state}</td></tr>`;});
+  tb.append(bd);
+  const w=el('div',{class:'tw'});w.append(tb);c.append(w);
+  return c;
+}
+
+function glossary(){
+  const d=el('details');
+  d.innerHTML='<summary>指标含义</summary><p class="note" style="margin-top:8px">'+
+  '<b>N_eff</b> = π/√(3(κ−1))，由周长比 κ 反解的等效多边形边数。以居中移动平均为基准的<i>相对</i>量。<br>'+
+  '<b>N_turn</b> = 2π/平均|转角|，不依赖基准的<i>绝对</i>量，用于交叉验证。两者数值不会相等，看各自的时间序列变化。<br>'+
+  '<b>C</b> 转向一致性 |Στ|/Σ|τ|：圆弧≈1，锯齿≈0。<b>不能省</b>——噪声和圆弧都会给出很多条边，靠 C 区分。<br>'+
+  '<b>ER</b> Kaufman 效率比，净位移/总行程。<br>'+
+  '<b>状态</b>：sharp (N&lt;5，尖锐折点) · normal (5–12) · circular (N≥12 且 C&gt;0.35，真平滑单边) · grinding (N≥12 但 C 低，低波动磨人行情)。</p>';
+  return d;
+}
+
+function empty(msg,detail){
+  const c=el('div',{class:'card'});
+  c.append(el('h2',{},msg));
+  c.append(el('p',{class:'note',html:detail}));
+  return c;
+}
+
+function render(){
+  const app=document.getElementById('app');app.innerHTML='';
+  if(!window.LATEST){
+    app.append(empty('还没有数据',
+      '<code>data/neff_latest.json</code> 尚未生成，说明工作流还没有成功跑过一次。<br><br>'+
+      '去仓库 <b>Actions</b> → <b>BTC N_eff</b> → <b>Run workflow</b> 手动触发一次。<br>'+
+      '若运行失败于最后的提交步骤，多半是 <b>Settings → Actions → General → Workflow permissions</b> 还没设成 <b>Read and write</b>。'));
+    return;
+  }
+  const tf=window.LATEST.timeframes||{};
+  app.append(tiles(tf));
+  const dc=decayCard(tf); if(dc)app.append(dc);
+  if(HIST&&Object.values(HIST.byBar).some(v=>v.length>1))app.append(histCard());
+  app.append(tableCard(tf));
+  const errs=window.LATEST.errors||{};
+  if(Object.keys(errs).length)app.append(empty('部分时间框架抓取失败',
+    Object.entries(errs).map(([k,v])=>`<b>${k}</b>: ${String(v).replace(/</g,'&lt;')}`).join('<br>')));
+  app.append(glossary());
+}
+
+function parseCSV(t){
+  const ln=t.trim().split(/\r?\n/);if(ln.length<2)return{byBar:{}};
+  const h=ln[0].split(',');const iB=h.indexOf('bar'),iN=h.indexOf('n_eff'),iG=h.indexOf('generated_at');
+  const byBar={};BARS.forEach(b=>byBar[b]=[]);
+  for(let i=1;i<ln.length;i++){const c=ln[i].split(',');const b=c[iB];
+    if(!byBar[b])continue;const t2=Date.parse(c[iG]),y=parseFloat(c[iN]);
+    if(isFinite(t2)&&isFinite(y))byBar[b].push({t:t2,n_eff:y});}
+  Object.values(byBar).forEach(a=>a.sort((p,q)=>p.t-q.t));
+  return{byBar};
+}
+
+async function load(){
+  const sub=document.getElementById('sub');
+  try{
+    const r=await fetch(bust('data/neff_latest.json'),{cache:'no-store'});
+    window.LATEST=r.ok?await r.json():null;
+  }catch(e){window.LATEST=null;}
+  try{
+    const r=await fetch(bust('data/neff_history.csv'),{cache:'no-store'});
+    HIST=r.ok?parseCSV(await r.text()):null;
+  }catch(e){HIST=null;}
+  if(window.LATEST){
+    const d=new Date(window.LATEST.generated_at);
+    sub.textContent=`${window.LATEST.instrument} · 窗口 ${window.LATEST.window_bars} 根 · 更新于 ${d.toLocaleString()}`;
+  }else sub.textContent='等待首次运行';
+  render();
+}
+load();
+setInterval(load,300000);
+let rt,lastNarrow=narrow();
+addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{
+  if(narrow()!==lastNarrow){lastNarrow=narrow();render();}},200);});
+</script>
