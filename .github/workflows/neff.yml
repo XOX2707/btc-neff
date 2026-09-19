@@ -29,12 +29,15 @@ jobs:
       # ref: is load-bearing. Without it checkout pins to the SHA that
       # triggered the run, which for a queued run is already stale — two
       # runs then each create data/ from nothing and collide add/add.
-      - uses: actions/checkout@v7
+      # Pinned to full commit SHAs: this repo requires it, and it is what
+      # stops a moved tag from silently changing what runs here.
+      # Bumping these is a manual step — the comment tracks the version.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
 
