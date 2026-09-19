@@ -21,7 +21,10 @@ jobs:
   run:
     runs-on: ubuntu-latest
     env:
-      INST_ID: BTC-USDT
+      # Comma-separated. Perpetuals end in -SWAP; run `python neff.py --list-swaps`
+      # to see what is available. Each instrument costs one API call per
+      # timeframe per run, so keep the list to what you actually watch.
+      INST_IDS: BTC-USDT
       BARS: ${{ github.event.inputs.bars || '5m,15m,1H,4H,1D' }}
       WINDOW: '60'
       SMOOTH: '5'
