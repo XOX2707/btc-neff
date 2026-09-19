@@ -2,7 +2,7 @@ name: BTC N_eff
 
 on:
   schedule:
-    - cron: '7,22,37,52 * * * *'
+    - cron: '0,30 * * * *'
   workflow_dispatch:
     inputs:
       bars:
