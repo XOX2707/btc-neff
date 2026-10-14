@@ -38,14 +38,14 @@
 
 ## 运行
 
-推到 GitHub 后自动每 15 分钟跑一次。手动触发：Actions → BTC N_eff → Run workflow。
+推到 GitHub 后，`.github/workflows/neff.yml` 按 cron `0,30 * * * *` 自动跑（约每 30 分钟，每小时的 0 分和 30 分）。手动触发：Actions → BTC N_eff → Run workflow。
 
 本地：
 
     python neff.py --selftest   # 合成数据验证
     python neff.py              # 真实抓取，写入 data/
 
-零依赖，只用标准库。
+零依赖，只用标准库。`migrate_history.py` 是一次性历史迁移脚本（按已存的 κ 重算 n_eff），不是主入口。
 
 ## 输出文件
 
@@ -56,9 +56,11 @@
 
 ## 配置
 
-环境变量（在 workflow 的 `env:` 里改）：
+环境变量（在 `.github/workflows/neff.yml` 的 `env:` 里改）：
 
-`OKX_BASE` `INST_ID` `BARS` `WINDOW` `SMOOTH` `OUT_DIR`
+`INST_IDS` `OKX_BASE` `BARS` `WINDOW` `SMOOTH` `OUT_DIR`
+
+`INST_IDS` 是逗号分隔的交易对（workflow 默认 `BTC-USDT`）。`INST_ID` 只作旧配置兼容：未设置 `INST_IDS` 时才会读取。
 
 ## 已知风险
 
