@@ -6,7 +6,13 @@ overlays the recent tail from /api/v5/market/candles — the same endpoint
 neff.py uses for the live reading. Hosts come from OKX_BASE, in order.
 
     python backfill_ohlc.py --dry-run
-    python backfill_ohlc.py --inst BTC-USDT --bars 5m,1H,4H --days 90
+    python backfill_ohlc.py --inst BTC-USDT --bars 5m,1H,4H
+
+With no --days and no --since, bars finer than 1H cover 365 days and 1H
+and slower cover 730. 5m at 365 days is about 350 pages (a couple of
+minutes at the default delay). OKX still serves several years of
+BTC-USDT history, so that default is a time choice, not an API cap.
+Pass --days to force one length on every bar.
 
 Network only happens without --dry-run. A 403 (common from US IPs) is
 reported with the hosts that were tried; an empty file is not written.
@@ -26,7 +32,12 @@ import neff_offline as off
 
 HISTORY_PATH = "/api/v5/market/history-candles"
 CANDLES_PATH = "/api/v5/market/candles"
-DEFAULT_DAYS = 90
+# Calendar days of signals when neither --days nor --since is set.
+# Finer than 1H: one year. 5m is ~350 pages at limit 300, a couple of
+# minutes with REQ_DELAY=0.15. 1H and slower: two years, which is only
+# a few dozen pages. OKX history goes back further; raise --days to pull it.
+DEFAULT_DAYS = 365
+DEFAULT_DAYS_SLOW = 730
 DEFAULT_LIMIT = 300
 RECENT_CAP = 1440  # /market/candles keeps about this many bars
 
@@ -63,11 +74,16 @@ def pace():
         time.sleep(neff.REQ_DELAY)
 
 
+def default_days(bar):
+    """Per-bar default used when the caller does not pass --days or --since."""
+    if off.bar_ms(bar) >= off.BAR_MS["1H"]:
+        return DEFAULT_DAYS_SLOW
+    return DEFAULT_DAYS
+
+
 def build_plan(inst, bars, days, since, until, limit, out_dir, now_ms, window):
     if since is not None and days is not None:
         raise ValueError("pass only one of --since and --days")
-    if days is None and since is None:
-        days = DEFAULT_DAYS
     if days is not None and days < 1:
         raise ValueError("--days must be >= 1")
     if limit < 1 or limit > 300:
@@ -79,10 +95,11 @@ def build_plan(inst, bars, days, since, until, limit, out_dir, now_ms, window):
     items = []
     for bar in bars:
         step = off.bar_ms(bar)
+        bar_days = days if days is not None else (None if since is not None else default_days(bar))
         if since is not None:
             signal_start = parse_ms(since)
         else:
-            signal_start = until_ms - int(days) * 86_400_000
+            signal_start = until_ms - int(bar_days) * 86_400_000
         fetch_start = signal_start - (window - 1) * step
         if fetch_start >= until_ms:
             raise ValueError(f"{bar}: empty range")
@@ -98,6 +115,7 @@ def build_plan(inst, bars, days, since, until, limit, out_dir, now_ms, window):
             "path": str(Path(out_dir) / f"{inst}_{bar}.csv"),
             "limit": limit,
             "window": window,
+            "days": bar_days,
         })
     return items
 
@@ -108,11 +126,12 @@ def format_plan(items):
         f"window={items[0]['window']} smooth={neff.SMOOTH} limit={items[0]['limit']}",
     ]
     for item in items:
+        span = f"{item['days']} days" if item["days"] else "--since"
         lines.append(
             f"  {item['inst']} {item['bar']}: fetch {off.iso(item['fetch_start'])}"
             f" .. {off.iso(item['until'])}"
             f" (signals from {off.iso(item['signal_start'])},"
-            f" warmup {item['window'] - 1} bars)"
+            f" {span}, warmup {item['window'] - 1} bars)"
             f" est_bars={item['est_bars']} est_pages={item['est_pages']}"
             f" -> {item['path']}"
         )
@@ -136,7 +155,8 @@ def _on_page(inst, bar):
 def download_bar(inst, bar, start_ms, end_ms, limit):
     step = off.bar_ms(bar)
     span = max(step, end_ms - start_ms)
-    max_pages = math.ceil(span / step / limit) + 5
+    # Slack covers the in-progress bar on page 1 and a short last page.
+    max_pages = math.ceil(span / step / limit) + 15
     rows, info = off.collect_candles(
         fetch_page, inst, bar, start_ms, end_ms,
         limit=limit, sleep=pace, path=HISTORY_PATH,
@@ -171,7 +191,9 @@ def main(argv=None):
     p.add_argument("--bars", default="5m,1H,4H",
                    help="comma-separated OKX bar ids (default 5m,1H,4H)")
     p.add_argument("--days", type=int, default=None,
-                   help=f"calendar days of signals to cover (default {DEFAULT_DAYS})")
+                   help=(f"calendar days of signals for every bar. Omit for the "
+                         f"per-bar default: {DEFAULT_DAYS} below 1H, "
+                         f"{DEFAULT_DAYS_SLOW} for 1H and slower"))
     p.add_argument("--since", default=None, help="signal start, YYYY-MM-DD or epoch ms")
     p.add_argument("--until", default=None, help="signal end, default now")
     p.add_argument("--limit", type=int, default=DEFAULT_LIMIT,

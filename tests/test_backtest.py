@@ -356,6 +356,19 @@ class PlanTests(unittest.TestCase):
             items[0]["fetch_start"],
             items[0]["signal_start"] - 59 * off.BAR_MS["4H"],
         )
+
+    def test_omitted_days_is_one_year_below_1h_and_two_years_slower(self):
+        now = 1_792_047_600_000
+        items = backfill_ohlc.build_plan(
+            "BTC-USDT", ["5m", "1H", "4H"], None, None, None, 300,
+            Path("data/ohlc"), now, 60,
+        )
+        by = {item["bar"]: item for item in items}
+        self.assertEqual(by["5m"]["days"], 365)
+        self.assertEqual(by["1H"]["days"], 730)
+        self.assertEqual(by["4H"]["days"], 730)
+        self.assertEqual(by["5m"]["signal_start"], now - 365 * 86_400_000)
+        self.assertEqual(by["4H"]["signal_start"], now - 730 * 86_400_000)
         with self.assertRaises(ValueError):
             backfill_ohlc.build_plan(
                 "BTC-USDT", ["5m"], 10, "2026-01-01", None, 300, Path("data/ohlc"), now, 60,
