@@ -47,6 +47,8 @@
 
 零依赖，只用标准库。`migrate_history.py` 是一次性历史迁移脚本（按已存的 κ 重算 n_eff），不是主入口。
 
+离线回补 K 线、滚动重放和与 `data/neff_history.csv` 的对账在 [BACKTEST.md](BACKTEST.md)。那条链路不进定时任务。
+
 ## 输出文件
 
 - `data/neff_latest.json` — 最新快照，含全部时间框架
