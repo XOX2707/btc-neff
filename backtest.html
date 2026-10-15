@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BTC N_eff 离线回测</title>
+<style>
+:root{
+  color-scheme: light;
+  --surface-0:#f4f4f2; --surface-1:#fcfcfb;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#73726c;
+  --border:#e0dfdb; --grid:#ebeae6;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4;
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --surface-0:#111110; --surface-1:#1a1a19;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#9c9a92;
+    --border:#33332f; --grid:#2a2a27;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --surface-0:#111110; --surface-1:#1a1a19;
+  --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#9c9a92;
+  --border:#33332f; --grid:#2a2a27;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; padding:16px; background:var(--surface-0); color:var(--text-primary);
+  font:400 15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:900px;margin:0 auto}
+h1{font-size:20px;font-weight:500;margin:0 0 2px}
+h2{font-size:15px;font-weight:500;margin:0 0 10px}
+.sub{color:var(--text-secondary);font-size:13px;margin:0 0 18px}
+.nav{font-size:13px;margin:0 0 8px;color:var(--text-secondary)}
+.nav a{color:var(--text-secondary);text-decoration:none}
+.nav a:hover{color:var(--text-primary)}
+.nav a[aria-current=page]{color:var(--text-primary)}
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
+.callout{border-left:3px solid var(--s4)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:12px 14px;border-top:3px solid var(--tc,var(--s1))}
+.tile .bar{font-size:12px;color:var(--text-secondary);letter-spacing:.04em}
+.tile .big{font-size:30px;font-weight:500;line-height:1.15;margin:2px 0 0;font-variant-numeric:tabular-nums}
+.tile .meta{font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums;margin-top:4px}
+.chip{display:inline-block;margin-top:7px;font-size:12px;padding:1px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-secondary)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 0 10px;font-size:13px;color:var(--text-secondary)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:11px;height:11px;border-radius:3px;flex:none}
+.mix{display:flex;height:8px;border-radius:99px;overflow:hidden;background:var(--grid);margin:8px 0 4px}
+.mix i{display:block;height:100%}
+.cmp{display:grid;gap:6px;margin:0 0 12px}
+.cmp .row{display:grid;grid-template-columns:72px 1fr auto;gap:8px;align-items:center;font-size:13px;font-variant-numeric:tabular-nums}
+.cmp .track{height:8px;border-radius:99px;background:var(--grid);overflow:hidden}
+.cmp .track i{display:block;height:100%;border-radius:99px}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{text-align:right;padding:6px 8px;border-bottom:1px solid var(--grid);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--text-secondary);font-weight:500}
+.note{font-size:13px;color:var(--text-secondary)}
+.note code,.note a{color:var(--text-primary)}
+.note code{background:var(--surface-0);padding:1px 5px;border-radius:4px;font-size:12px}
+.pass{color:var(--s3)}
+.fail{color:var(--s2)}
+details{margin-top:4px} summary{cursor:pointer;color:var(--text-secondary);font-size:13px}
+</style>
+
+<div class="wrap">
+  <p class="nav"><a href="index.html">实时</a> · <a href="backtest.html" aria-current="page">离线回测</a></p>
+  <h1>BTC N_eff · 离线回测</h1>
+  <p class="sub" id="sub">加载中…</p>
+  <div id="app"></div>
+</div>
+
+<script>
+const BARS=['5m','15m','1H','4H','1D'];
+const COL={'5m':'--s1','15m':'--s2','1H':'--s3','4H':'--s4','1D':'--s5'};
+const STATES=['sharp','normal','circular','grinding'];
+const STATE_COL={sharp:'--s2',normal:'--s1',circular:'--s3',grinding:'--s4'};
+const KIND={all:'全部',state:'状态',n_eff_band:'N_eff 分界',n_eff_tercile:'三分位'};
+const GROUP={
+  all:'全部', sharp:'sharp', normal:'normal', circular:'circular', grinding:'grinding',
+  lt_5:'N_eff < 5', ge_5:'N_eff ≥ 5', low:'低', mid:'中', high:'高',
+};
+const CONTRAST={
+  'sharp vs normal':'sharp 对 normal',
+  'n_eff<5 vs n_eff>=5':'N_eff < 5 对 ≥ 5',
+  'tercile low vs high':'三分位 低对高',
+};
+const el=(t,a={},...k)=>{const n=document.createElement(t);for(const[p,v]of Object.entries(a))p==='html'?n.innerHTML=v:n.setAttribute(p,v);k.forEach(c=>n.append(c));return n};
+const bust=u=>u+(u.includes('?')?'&':'?')+'t='+Date.now();
+const fmtN=v=>Number(v).toLocaleString(undefined);
+const fmt4=v=>(v==null||v==='')?'—':Number(v).toFixed(4);
+const fmtR=v=>(v==null||v==='')?'—':Number(v).toFixed(3);
+const day=s=>s?String(s).slice(0,16).replace('T',' ')+' UTC':'—';
+const dayOnly=s=>s?String(s).slice(0,10):'—';
+
+function card(title){
+  const c=el('div',{class:'card'});
+  if(title)c.append(el('h2',{},title));
+  return c;
+}
+function note(text){return el('p',{class:'note'},text);}
+function table(headers, rows){
+  const tb=el('table');
+  const th=el('thead'); const hr=el('tr');
+  headers.forEach(h=>hr.append(el('th',{},h)));
+  th.append(hr); tb.append(th);
+  const bd=el('tbody');
+  rows.forEach(r=>{
+    const tr=el('tr');
+    r.forEach(cell=>tr.append(el('td',{},cell==null?'—':String(cell))));
+    bd.append(tr);
+  });
+  tb.append(bd);
+  const w=el('div',{class:'tw'}); w.append(tb); return w;
+}
+function groupName(row){
+  const base=GROUP[row.group]||row.group;
+  return row.thin?base+' *':base;
+}
+function byBar(list, bar){
+  return (list||[]).find(x=>x.bar===bar)||null;
+}
+
+const FALLBACK_DISCLAIMER='不回答该不该买。N_eff 是走完之后的几何描述，下面的表只比较下一根 K 线的绝对波动。没有方向，没有仓位，没有成本，也不是可以兑现的优势。';
+const FALLBACK_STOP='止损只是存根：下一根高低点有没有碰到收盘价 ± k·σ。影线指碰到了但收盘回到带内。不建仓，也不看更后面的 K 线。';
+
+function disclaimerCard(data){
+  const c=card('先读这一段');
+  c.classList.add('callout');
+  c.append(note(data&&data.disclaimer||FALLBACK_DISCLAIMER));
+  c.append(note(data&&data.stop_note||FALLBACK_STOP));
+  return c;
+}
+
+function refreshNote(){
+  const c=card('怎么刷新这页');
+  c.append(el('p',{class:'note',html:
+    '页面只读已提交的 <code>data/backtest_web/summary.json</code>。'+
+    '本地跑完回补和回放之后：<br><code>python export_backtest_web.py</code><br>'+
+    '再把 <code>data/backtest_web/</code> 提交上去。定时任务不跑这条链路。步骤写在仓库的 BACKTEST.md。'}));
+  return c;
+}
+
+function empty(msg, detail){
+  const c=card(msg);
+  c.append(el('p',{class:'note',html:detail}));
+  return c;
+}
+
+function tiles(data){
+  const g=el('div',{class:'tiles'});
+  (data.bars||[]).forEach(m=>{
+    const t=el('div',{class:'tile',style:`--tc:var(${COL[m.bar]||'--s1'})`});
+    t.append(el('div',{class:'bar'},m.bar));
+    t.append(el('div',{class:'big'},fmtN(m.signals)));
+    t.append(el('div',{class:'meta'},'信号根数'));
+    t.append(el('div',{class:'meta'},`${dayOnly(m.signal_start)} .. ${dayOnly(m.signal_end)}`));
+    const bits=STATES.filter(s=>m.states&&m.states[s]).map(s=>`${s} ${fmtN(m.states[s])}`);
+    t.append(el('div',{class:'meta'},bits.join(' · ')||'无状态'));
+    const absent=STATES.filter(s=>!m.states||!m.states[s]);
+    if(absent.length)t.append(el('span',{class:'chip'},absent.join(' / ')+' 无'));
+    g.append(t);
+  });
+  return g;
+}
+
+function metaCard(data){
+  const c=card('这次跑了什么');
+  c.append(note('K 线是下载到的已收盘根数，含窗口暖机。信号是每一根都能调用 analyze() 的 K 线，时间戳在窗口右端。跨度按信号首尾的 UTC 时间，不是整日历天。'));
+  const rows=(data.bars||[]).map(m=>[
+    m.bar,
+    m.span_days==null?'—':String(m.span_days),
+    day(m.signal_start),
+    day(m.signal_end),
+    m.candles==null?'—':fmtN(m.candles),
+    fmtN(m.signals),
+    m.gaps==null?'—':fmtN(m.gaps),
+  ]);
+  c.append(table(['周期','跨度（天）','信号起','信号止','K 线','信号','缺口'], rows));
+  if((data.missing_bars||[]).length){
+    c.append(note('缺面板的周期：'+data.missing_bars.join('、')+'。'));
+  }
+  return c;
+}
+
+function parityCard(data){
+  const p=data.parity;
+  const c=card('和实盘快照对账');
+  if(!p||p.verdict==null){
+    c.append(note(p&&p.error?('没有对账：'+p.error):'这次没有对账。'));
+    return c;
+  }
+  const big=el('div',{class:'big '+(p.verdict==='PASS'?'pass':'fail')});
+  big.textContent=p.verdict;
+  big.style.fontSize='30px';
+  big.style.fontWeight='500';
+  big.style.fontVariantNumeric='tabular-nums';
+  c.append(big);
+  const bits=(p.bars||[]).map(b=>`${b.bar} ${fmtN(b.matched)}/${fmtN(b.unique)}`);
+  c.append(note('对齐 / 历史里不重复的 candle。'+bits.join(' · ')));
+  c.append(table(
+    ['周期','历史行','去重','对齐','不一致','缺席','历史内冲突','旧 c_ratio'],
+    (p.bars||[]).map(b=>[b.bar,fmtN(b.history_rows),fmtN(b.unique),fmtN(b.matched),fmtN(b.mismatched),fmtN(b.missing),fmtN(b.conflicts),fmtN(b.c_ratio_legacy)])
+  ));
+  const legacy=(p.bars||[]).reduce((s,b)=>s+(b.c_ratio_legacy||0),0);
+  if(legacy)c.append(note(`其中 ${fmtN(legacy)} 行只差迁移脚本的 c_ratio 口径，κ、N_eff、C、ER 和状态是对齐的。`));
+  (p.bars||[]).forEach(b=>{
+    (b.examples||[]).forEach(ex=>c.append(note(b.bar+' '+ex)));
+  });
+  if(p.allow_missing)c.append(note('这次允许历史时间戳缺席；数值对不上仍然是 FAIL。'));
+  return c;
+}
+
+function stateCard(data){
+  const c=card('各周期的状态');
+  c.append(note('状态沿用实盘的 label()：sharp（N_eff < 5）、normal（5–12）、circular（N_eff ≥ 12 且 C > 0.35）、grinding（N_eff ≥ 12 但 C 低）。计数来自面板，不是下一根样本。0 就是没出现。'));
+  const lg=el('div',{class:'legend'});
+  STATES.forEach(s=>lg.append(el('span',{},el('i',{class:'sw',style:`background:var(${STATE_COL[s]})`}),s)));
+  c.append(lg);
+  (data.bars||[]).forEach(m=>{
+    const total=STATES.reduce((s,k)=>s+(m.states&&m.states[k]||0),0)||1;
+    const mix=el('div',{class:'mix','aria-hidden':'true'});
+    STATES.forEach(s=>{
+      const n=m.states&&m.states[s]||0;
+      if(!n)return;
+      mix.append(el('i',{style:`width:${(100*n/total).toFixed(2)}%;background:var(${STATE_COL[s]})`}));
+    });
+    c.append(el('div',{class:'bar',style:'margin-top:8px'},m.bar));
+    c.append(mix);
+  });
+  c.append(table(
+    ['周期'].concat(STATES),
+    (data.bars||[]).map(m=>[m.bar].concat(STATES.map(s=>fmtN(m.states&&m.states[s]||0))))
+  ));
+  const none=(data.bars||[]).every(m=>!(m.states&&(m.states.circular||m.states.grinding)));
+  if(none&&(data.bars||[]).length)c.append(note('这次样本里没有 circular，也没有 grinding。缺席不是一种交易状态。'));
+  return c;
+}
+
+function cmpBars(rows){
+  const states=rows.filter(r=>r.group_kind==='state');
+  if(states.length<2)return null;
+  const max=Math.max(...states.map(r=>Number(r.median_abs_over_sigma)||0), 0.0001);
+  const box=el('div',{class:'cmp'});
+  states.forEach(r=>{
+    const v=Number(r.median_abs_over_sigma)||0;
+    const row=el('div',{class:'row'});
+    row.append(el('span',{},groupName(r)));
+    const track=el('div',{class:'track'});
+    track.append(el('i',{style:`width:${(100*v/max).toFixed(1)}%;background:var(${STATE_COL[r.group]||'--s5'})`}));
+    row.append(track);
+    row.append(el('b',{},fmt4(v)));
+    box.append(row);
+  });
+  return box;
+}
+
+function hypCard(data, meta){
+  const h=byBar(data.hypothesis&&data.hypothesis.bars, meta.bar);
+  const c=card(`${meta.bar} · 下一根的波动`);
+  if(!h||!h.range_rows||!h.range_rows.length){
+    c.append(note(h&&h.notes_zh&&h.notes_zh[0]||'这张表是空的。'));
+    return c;
+  }
+  c.append(note(`下一根样本 ${fmtN(h.n)}。n < ${data.hypothesis.thin_n} 的组打了 *。中位数之比是左 / 右。`));
+  const cmp=cmpBars(h.range_rows);
+  if(cmp){
+    c.append(note('中位 |Δclose| / σ，按状态。条越长越大，不是收益。'));
+    c.append(cmp);
+  }
+  (h.contrasts||[]).forEach(ct=>{
+    const name=CONTRAST[ct.label]||ct.label;
+    if(!ct.ok){
+      c.append(note(`${name}：样本不够，不能比（n=${fmtN(ct.n_a)} 对 ${fmtN(ct.n_b)}）。`));
+      return;
+    }
+    c.append(note(
+      `${name}（n=${fmtN(ct.n_a)} 对 ${fmtN(ct.n_b)}）：`+
+      `中位 |Δclose|/σ ${fmt4(ct.median_abs_over_sigma_a)} 对 ${fmt4(ct.median_abs_over_sigma_b)}，之比 ${fmtR(ct.ratio_abs)}；`+
+      `(high−low)/σ ${fmt4(ct.median_range_over_sigma_a)} 对 ${fmt4(ct.median_range_over_sigma_b)}，之比 ${fmtR(ct.ratio_range)}。`
+    ));
+  });
+  c.append(table(
+    ['分组','组','n','中位 |Δclose|/σ','均值 |Δclose|/σ','中位 (high−low)/σ','均值 (high−low)/σ'],
+    h.range_rows.map(r=>[
+      KIND[r.group_kind]||r.group_kind, groupName(r), fmtN(r.n),
+      fmt4(r.median_abs_over_sigma), fmt4(r.mean_abs_over_sigma),
+      fmt4(r.median_range_over_sigma), fmt4(r.mean_range_over_sigma),
+    ])
+  ));
+  if(h.stop_rows&&h.stop_rows.length){
+    c.append(el('h2',{style:'margin-top:14px'},'止损存根'));
+    c.append(table(
+      ['分组','组','k','n','触碰','影线','收盘穿出'],
+      h.stop_rows.map(r=>[
+        KIND[r.group_kind]||r.group_kind, groupName(r), Number(r.k).toFixed(1), fmtN(r.n),
+        fmt4(r.touch_rate), fmt4(r.wick_rate), fmt4(r.close_through_rate),
+      ])
+    ));
+  }
+  (h.notes_zh||[]).forEach(t=>c.append(note(t)));
+  return c;
+}
+
+function glossary(){
+  const d=el('details');
+  d.append(el('summary',{},'这些数是什么'));
+  d.append(el('p',{class:'note',html:
+    '<b>σ</b> 是该窗口的 <code>sigma_per_bar</code>，和实盘 <code>analyze()</code> 同一字段。<br>'+
+    '<b>|Δclose| / σ</b> 下一根收盘相对这一根收盘的绝对变化，除以 σ。<br>'+
+    '<b>(high−low) / σ</b> 下一根最高减最低，除以 σ。这一根自己的高低点已经进了路径，不当结果。<br>'+
+    '<b>N_eff &lt; 5</b> 用四舍五入后的 <code>n_eff</code> 列，和 <code>label()</code> 的 sharp 分界同一刀。<br>'+
+    '<b>三分位</b> 只在这份样本内部切，不是固定阈值。<br>'+
+    '数学没有第二套。离线脚本调用的就是实盘的 <code>neff.analyze</code>。'}));
+  return d;
+}
+
+function render(data){
+  const app=document.getElementById('app');
+  app.innerHTML='';
+  app.append(disclaimerCard(data));
+  if(!data){
+    app.append(empty('还没有摘要',
+      '<code>data/backtest_web/summary.json</code> 还没提交。本地跑完回测后执行 <code>python export_backtest_web.py</code>。'));
+    app.append(refreshNote());
+    return;
+  }
+  if(data.placeholder){
+    const c=card('还没有离线样本');
+    c.append(note(data.placeholder_note||'摘要标明这是占位，没有波动数字。'));
+    app.append(c);
+    app.append(refreshNote());
+    app.append(glossary());
+    return;
+  }
+  if(data.bars&&data.bars.length)app.append(tiles(data));
+  app.append(metaCard(data));
+  app.append(parityCard(data));
+  app.append(stateCard(data));
+  (data.bars||[]).forEach(m=>app.append(hypCard(data, m)));
+  app.append(glossary());
+  app.append(refreshNote());
+}
+
+function subtitle(data){
+  const sub=document.getElementById('sub');
+  if(!data){sub.textContent='摘要还没生成';return;}
+  if(data.placeholder){sub.textContent='占位摘要 · 没有样本';return;}
+  const d=new Date(data.generated_at);
+  const when=isNaN(d.getTime())?data.generated_at:d.toLocaleString();
+  sub.textContent=`${data.instrument||'—'} · 窗口 ${data.window_bars} 根 · 平滑 ${data.smooth_width} · 导出于 ${when}`;
+}
+
+async function load(){
+  let data=null;
+  try{
+    const r=await fetch(bust('data/backtest_web/summary.json'),{cache:'no-store'});
+    data=r.ok?await r.json():null;
+  }catch(e){data=null;}
+  subtitle(data);
+  render(data);
+}
+load();
+setInterval(load,300000);
+</script>

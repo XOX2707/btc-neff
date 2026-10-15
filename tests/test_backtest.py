@@ -5,6 +5,7 @@
 """
 
 import io
+import json
 import math
 import random
 import shutil
@@ -22,6 +23,7 @@ import neff  # noqa: E402
 import neff_offline as off  # noqa: E402
 import backfill_ohlc  # noqa: E402
 import backtest_neff  # noqa: E402
+import export_backtest_web as web  # noqa: E402
 
 FIXTURE_DIR = ROOT / "tests" / "fixtures"
 HIST_FIELDS = [
@@ -466,6 +468,140 @@ class FixtureTests(unittest.TestCase):
                     "parity", *base, "--history", str(FIXTURE_DIR / "history_tiny.csv"),
                 ]), 0)
             self.assertIn("PASS", (out / "parity.txt").read_text(encoding="utf-8"))
+
+
+class WebExportTests(unittest.TestCase):
+    def setUp(self):
+        if neff.WINDOW != 60 or neff.SMOOTH != 5:
+            self.skipTest("committed fixture assumes WINDOW=60 SMOOTH=5")
+
+    def _layout(self, tmp):
+        tmp = Path(tmp)
+        ohlc = tmp / "ohlc"
+        panel = tmp / "backtest"
+        out = tmp / "web"
+        ohlc.mkdir()
+        shutil.copy(FIXTURE_DIR / "ohlc_tiny.csv", ohlc / "BTC-USDT_5m.csv")
+        base = ["--inst", "BTC-USDT", "--bars", "5m",
+                "--ohlc-dir", str(ohlc), "--out-dir", str(panel)]
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(backtest_neff.main(["all", *base,
+                "--history", str(FIXTURE_DIR / "history_tiny.csv")]), 0)
+        return ohlc, panel, out
+
+    def test_export_fixture_summary_is_small_and_honest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ohlc, panel, out = self._layout(tmp)
+            with redirect_stdout(io.StringIO()):
+                rc = web.main([
+                    "--inst", "BTC-USDT", "--bars", "5m",
+                    "--ohlc-dir", str(ohlc), "--backtest-dir", str(panel),
+                    "--history", str(FIXTURE_DIR / "history_tiny.csv"),
+                    "--out-dir", str(out),
+                ])
+            self.assertEqual(rc, 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertFalse(summary["placeholder"])
+            self.assertIn("不回答该不该买", summary["disclaimer"])
+            self.assertEqual(summary["disclaimer_en"], off.DISCLAIMER)
+            self.assertEqual(summary["instrument"], "BTC-USDT")
+            self.assertEqual(summary["window_bars"], 60)
+            self.assertEqual(summary["parity"]["verdict"], "PASS")
+            self.assertEqual(summary["parity"]["bars"][0]["matched"], 3)
+            meta = summary["bars"][0]
+            self.assertEqual(meta["bar"], "5m")
+            self.assertEqual(meta["candles"], 90)
+            self.assertEqual(meta["gaps"], 0)
+            self.assertEqual(
+                sum(meta["states"][name] for name in off.STATE_ORDER),
+                meta["signals"],
+            )
+            self.assertGreater(meta["signals"], 0)
+            hyp = summary["hypothesis"]["bars"][0]
+            self.assertEqual(hyp["source"], "ohlc")
+            self.assertEqual(hyp["n"], meta["signals"] - 1)
+            self.assertTrue(hyp["range_rows"])
+            self.assertTrue(hyp["stop_rows"])
+            self.assertTrue((out / "hypothesis_range.csv").exists())
+            self.assertTrue((out / "hypothesis_stop.csv").exists())
+            self.assertLess((out / "summary.json").stat().st_size, 200_000)
+            names = sorted(p.name for p in out.iterdir())
+            self.assertEqual(names, [
+                "hypothesis_range.csv", "hypothesis_stop.csv", "summary.json",
+            ])
+
+    def test_csv_fallback_when_ohlc_is_absent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _ohlc, panel, out = self._layout(tmp)
+            empty = Path(tmp) / "no-ohlc"
+            empty.mkdir()
+            with redirect_stdout(io.StringIO()):
+                rc = web.main([
+                    "--inst", "BTC-USDT", "--bars", "5m",
+                    "--ohlc-dir", str(empty), "--backtest-dir", str(panel),
+                    "--history", str(FIXTURE_DIR / "history_tiny.csv"),
+                    "--out-dir", str(out),
+                ])
+            self.assertEqual(rc, 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            meta = summary["bars"][0]
+            self.assertIsNone(meta["candles"])
+            self.assertFalse(meta["ohlc_present"])
+            hyp = summary["hypothesis"]["bars"][0]
+            self.assertEqual(hyp["source"], "csv")
+            self.assertGreater(hyp["n"], 0)
+            sharp = next(c for c in hyp["contrasts"] if c["label"] == "sharp vs normal")
+            self.assertIn("ok", sharp)
+            self.assertTrue((out / "hypothesis_range.csv").exists())
+
+    def test_placeholder_writes_no_ratios_and_clears_csv(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "web"
+            out.mkdir()
+            (out / "hypothesis_range.csv").write_text("stale\n", encoding="utf-8")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(web.main(["--placeholder", "--out-dir", str(out)]), 0)
+            summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+            self.assertTrue(summary["placeholder"])
+            self.assertEqual(summary["bars"], [])
+            self.assertIsNone(summary["hypothesis"])
+            self.assertIsNone(summary["parity"])
+            self.assertIn("不会补造数字", summary["placeholder_note"])
+            self.assertFalse((out / "hypothesis_range.csv").exists())
+            self.assertFalse((out / "hypothesis_stop.csv").exists())
+
+    def test_missing_panels_do_not_write(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "web"
+            err = io.StringIO()
+            with redirect_stdout(io.StringIO()), redirect_stderr(err):
+                rc = web.main([
+                    "--backtest-dir", str(Path(tmp) / "missing"),
+                    "--out-dir", str(out),
+                ])
+            self.assertEqual(rc, 1)
+            self.assertIn("Refusing to invent", err.getvalue())
+            self.assertFalse(out.exists())
+
+    def test_pages_link_each_other_and_gitignore_keeps_the_summary(self):
+        page = (ROOT / "backtest.html").read_text(encoding="utf-8")
+        live = (ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("data/backtest_web/summary.json", page)
+        self.assertIn("不回答该不该买", page)
+        self.assertIn('href="index.html"', page)
+        self.assertIn('href="backtest.html"', live)
+        self.assertIn("data/backtest_web/", (ROOT / "BACKTEST.md").read_text(encoding="utf-8"))
+        for path in ("data/ohlc/BTC-USDT_5m.csv", "data/backtest/BTC-USDT_5m_panel.csv"):
+            proc = subprocess.run(
+                ["git", "check-ignore", "-q", "--", path],
+                cwd=ROOT, check=False,
+            )
+            self.assertEqual(proc.returncode, 0, path)
+        kept = subprocess.run(
+            ["git", "check-ignore", "-q", "--", "data/backtest_web/summary.json"],
+            cwd=ROOT, check=False,
+        )
+        self.assertEqual(kept.returncode, 1)
 
 
 if __name__ == "__main__":
