@@ -4,7 +4,7 @@
 
 它不回答「该不该买」。N_eff 是走完之后的几何描述，下面的表只比较下一根 K 线的绝对波动。
 
-定时任务 `.github/workflows/neff.yml` 不跑这些脚本。
+实时任务 `.github/workflows/neff.yml` 不跑这些脚本；`.github/workflows/backtest.yml` 在它每次成功跑完后接着跑一遍，让回测页和实时页同步更新（见下面「自动同步」）。
 
 ## 和实盘同一套数学
 
@@ -16,7 +16,7 @@
 
 ## 数据不进 git
 
-`data/ohlc/` 和 `data/backtest/` 在 `.gitignore` 里。多年的 K 线不要提交。拉一次就会在本地生成。
+`data/ohlc/` 和 `data/backtest/` 在 `.gitignore` 里。多年的 K 线不要提交。拉一次就会在本地生成；自动同步时 `data/ohlc/` 放在 Actions 缓存里。
 
 网页用的摘要在 `data/backtest_web/`，体积小，要提交。`.gitignore` 只排除上面两个目录；`data/backtest_web/` 是另一个路径，否定规则写在后面，避免以后加宽 `data/` 时把它一起藏掉。
 
@@ -80,9 +80,20 @@ OHLC 没下全、但重叠的那些 candle 已经对齐时，可以加 `--allow-
 
 GitHub Pages：<https://xox2707.github.io/btc-neff/backtest.html>（仓库根目录的 `backtest.html`）。实时看板在 <https://xox2707.github.io/btc-neff/>，两页互相链着。
 
-页面只读已提交的 `data/backtest_web/summary.json`。不读 `data/ohlc/`，也不读面板。定时任务 `.github/workflows/neff.yml` 不生成这些文件。页上的数字是某一次导出，和下面「一次更长的样本」那张表同一套默认跨度；若后来又导了一次，以 `summary.json` 为准。
+页面只读已提交的 `data/backtest_web/summary.json`，每 5 分钟重读一次。不读 `data/ohlc/`，也不读面板。页上的数字是最近一次导出，和下面「一次更长的样本」那张表同一套默认跨度；两者不同时以 `summary.json` 为准。
 
-本地回测跑完后刷新摘要（`WINDOW` / `SMOOTH` 要和回放时一致）：
+### 自动同步
+
+`.github/workflows/backtest.yml` 由 `workflow_run` 触发：实时工作流 `BTC N_eff` 每成功跑完一次（cron `0,30 * * * *`），它就
+
+1. 从 Actions 缓存恢复 `data/ohlc/`；
+2. `python backfill_ohlc.py --incremental`：保留已有 K 线，只重新下载最后 `WINDOW` 根和更新的部分，并把早于默认跨度起点的行丢掉，跨度随时间往前滚；
+3. `python backtest_neff.py replay`，再 `python export_backtest_web.py`（对账用实时任务刚提交的 `neff_history.csv`）；
+4. 提交 `data/backtest_web/`。推送被拒（实时任务刚推过）就以远端为准重新导出，最多 3 次。
+
+缓存每个 UTC 日存一份。第一次没有缓存时整段下载，大约 3–4 分钟；之后每次只要一两页，整个任务一分钟左右，主要花在重放上。对账 `FAIL` 不会让任务失败，结论写进摘要，页面上显示。OKX 拒绝请求时任务失败、不提交，页面保留上一次的导出，副标题的「导出于」不再前进。手动触发：Actions → BTC N_eff backtest → Run workflow。
+
+本地手动刷新也照样可以（`WINDOW` / `SMOOTH` 要和回放时一致）：
 
 ```bash
 python backfill_ohlc.py --inst BTC-USDT --bars 5m,1H,4H

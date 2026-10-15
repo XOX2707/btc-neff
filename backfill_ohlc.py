@@ -14,6 +14,12 @@ minutes at the default delay). OKX still serves several years of
 BTC-USDT history, so that default is a time choice, not an API cap.
 Pass --days to force one length on every bar.
 
+--incremental keeps an existing CSV and only re-downloads its tail (the
+last WINDOW bars, to pick up any late revision) plus everything newer.
+Rows older than the requested start are dropped, so the span keeps
+rolling forward. A missing or shorter file falls back to a full download.
+The scheduled backtest workflow uses this with a cached data/ohlc/.
+
 Network only happens without --dry-run. A 403 (common from US IPs) is
 reported with the hosts that were tried; an empty file is not written.
 
@@ -152,6 +158,27 @@ def _on_page(inst, bar):
     return inner
 
 
+def resume_point(path, fetch_start, until, step, window):
+    """(rows to keep, download start) for --incremental.
+
+    Returns ({}, fetch_start) — a full download — when the file is missing,
+    unreadable, or does not reach back to fetch_start.
+    """
+    path = Path(path)
+    if not path.exists():
+        return {}, fetch_start
+    try:
+        rows = off.read_ohlc(path)
+    except ValueError:
+        return {}, fetch_start
+    if rows[0]["ts"] > fetch_start + step:
+        return {}, fetch_start
+    keep = {r["ts"]: r for r in rows if fetch_start <= r["ts"] <= until}
+    if not keep:
+        return {}, fetch_start
+    return keep, max(fetch_start, max(keep) - window * step)
+
+
 def download_bar(inst, bar, start_ms, end_ms, limit):
     step = off.bar_ms(bar)
     span = max(step, end_ms - start_ms)
@@ -199,6 +226,8 @@ def main(argv=None):
     p.add_argument("--limit", type=int, default=DEFAULT_LIMIT,
                    help="page size, OKX accepts up to 300")
     p.add_argument("--out-dir", default="data/ohlc")
+    p.add_argument("--incremental", action="store_true",
+                   help="reuse an existing CSV and fetch only its tail and newer bars")
     p.add_argument("--dry-run", action="store_true",
                    help="print the request plan and do not call OKX")
     args = p.parse_args(argv)
@@ -220,15 +249,25 @@ def main(argv=None):
 
     failed = False
     for item in items:
-        print(f"fetching {item['inst']} {item['bar']} ...", flush=True)
+        kept, start = {}, item["fetch_start"]
+        if args.incremental:
+            kept, start = resume_point(
+                item["path"], item["fetch_start"], item["until"],
+                off.bar_ms(item["bar"]), item["window"],
+            )
+        mode = f"incremental from {off.iso(start)}, kept {len(kept)}" if kept else "full"
+        print(f"fetching {item['inst']} {item['bar']} ({mode}) ...", flush=True)
         try:
             rows, info = download_bar(
-                item["inst"], item["bar"], item["fetch_start"], item["until"], item["limit"],
+                item["inst"], item["bar"], start, item["until"], item["limit"],
             )
         except RuntimeError as e:
             print(f"error: {item['inst']} {item['bar']}: {e}", file=sys.stderr)
             failed = True
             continue
+        if kept:
+            info["close_conflicts"] += off.merge_candles(kept, rows)
+            rows = kept
         ordered = off.ordered_candles(rows)
         if not ordered:
             print(
