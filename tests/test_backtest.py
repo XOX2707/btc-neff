@@ -24,6 +24,8 @@ import neff_offline as off  # noqa: E402
 import backfill_ohlc  # noqa: E402
 import backtest_neff  # noqa: E402
 import export_backtest_web as web  # noqa: E402
+import experiment_transitions as exp  # noqa: E402
+import experiment_features as feat  # noqa: E402
 
 FIXTURE_DIR = ROOT / "tests" / "fixtures"
 HIST_FIELDS = [
@@ -666,3 +668,100 @@ if __name__ == "__main__":
         print(f"wrote {FIXTURE_DIR}")
     else:
         unittest.main()
+
+
+class TransitionExperimentTests(unittest.TestCase):
+    def test_thin_keeps_events_h_apart(self):
+        events = [{"n": n} for n in (0, 1, 2, 5, 6, 12)]
+        self.assertEqual([e["n"] for e in exp.thin(events, 3)], [0, 5, 12])
+        self.assertEqual(len(exp.thin(events, 1)), 6)
+
+    def test_continuation_is_signed_by_window_move(self):
+        # A straight up-move: d = +1, the next bar keeps rising, so cont > 0
+        # and nothing moves against it.
+        step = off.BAR_MS["5m"]
+        candles = [{"ts": i * step, "open": 100 + i, "high": 100.5 + i,
+                    "low": 99.5 + i, "close": 100.0 + i, "vol": 0}
+                   for i in range(neff.WINDOW + 2)]
+        i = neff.WINDOW - 1
+        panel = [{"candle_ts": candles[i]["ts"], "state": "normal", "sigma_per_bar": 1.0}]
+        rows = exp.build_rows(panel, candles, "5m", [1], 1.0)
+        self.assertEqual(len(rows), 1)
+        out = rows[0]["out"][1]
+        self.assertEqual(rows[0]["d"], 1.0)
+        self.assertAlmostEqual(out["cont"], 1.0)
+        self.assertEqual(out["mae"], 0.0)
+        self.assertEqual(out["touch"], "with")
+
+    def test_runs_on_fixture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            ohlc = tmp / "ohlc"
+            ohlc.mkdir()
+            shutil.copy(FIXTURE_DIR / "ohlc_tiny.csv", ohlc / "BTC-USDT_5m.csv")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(backtest_neff.main([
+                    "replay", "--bars", "5m", "--ohlc-dir", str(ohlc),
+                    "--out-dir", str(tmp)]), 0)
+                rc = exp.main(["--bars", "5m", "--horizons", "1,3",
+                               "--panel-dir", str(tmp), "--ohlc-dir", str(ohlc),
+                               "--out-dir", str(tmp)])
+            self.assertEqual(rc, 0)
+            text = (tmp / "transitions.txt").read_text(encoding="utf-8")
+            self.assertIn("all bars", text)
+            self.assertIn("out", text)
+            self.assertTrue((tmp / "transitions.csv").exists())
+
+
+class FeatureExperimentTests(unittest.TestCase):
+    def test_solve_logit_auc(self):
+        self.assertEqual([round(v, 6) for v in feat.solve([[2.0, 1.0], [1.0, 3.0]], [3.0, 5.0])],
+                         [0.8, 1.4])
+        rnd = random.Random(3)
+        xs, ys = [], []
+        for _ in range(400):
+            x = rnd.gauss(0, 1)
+            xs.append([1.0, x])
+            ys.append(1 if rnd.random() < feat.sigmoid(2.0 * x) else 0)
+        beta = feat.fit_logit(xs, ys, ridge=0.0)
+        self.assertTrue(1.2 < beta[1] < 3.0, beta)
+        self.assertEqual(feat.auc([0.1, 0.4, 0.35, 0.8], [0, 0, 1, 1]), 0.75)
+
+    def test_other_timeframes_are_closed_before_the_base_bar(self):
+        rnd = random.Random(11)
+        step5, step1h = off.BAR_MS["5m"], off.BAR_MS["1H"]
+        t0 = 1_790_000_000_000 - (1_790_000_000_000 % step1h)
+        price, five = 80000.0, []
+        for i in range(12 * 160):
+            o = price
+            price *= math.exp(rnd.gauss(0, 0.002))
+            five.append({"ts": t0 + i * step5, "open": o, "high": max(o, price) * 1.0005,
+                         "low": min(o, price) * 0.9995, "close": price, "vol": 1.0})
+        hour = []
+        for k in range(0, len(five), 12):
+            chunk = five[k:k + 12]
+            hour.append({"ts": chunk[0]["ts"], "open": chunk[0]["open"],
+                         "high": max(c["high"] for c in chunk),
+                         "low": min(c["low"] for c in chunk),
+                         "close": chunk[-1]["close"], "vol": 12.0})
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            off.write_ohlc(tmp / "BTC-USDT_5m.csv", five)
+            off.write_ohlc(tmp / "BTC-USDT_1H.csv", hour)
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(backtest_neff.main([
+                    "replay", "--bars", "5m,1H", "--ohlc-dir", str(tmp),
+                    "--out-dir", str(tmp)]), 0)
+            rows = feat.build("BTC-USDT", "5m", ["1H"], [1, 3], tmp, tmp)
+            self.assertGreater(len(rows), 100)
+            for r in rows:
+                self.assertLessEqual(r["tfs"]["1H"]["close_ts"], r["ts"])
+                self.assertLessEqual(r["ts"] - r["tfs"]["1H"]["close_ts"], step1h)
+            with redirect_stdout(io.StringIO()):
+                rc = feat.main(["--base", "5m", "--others", "1H", "--horizons", "1,3",
+                                "--stride", "1", "--panel-dir", str(tmp),
+                                "--ohlc-dir", str(tmp), "--out-dir", str(tmp)])
+            self.assertEqual(rc, 0)
+            text = (tmp / "features_5m.txt").read_text(encoding="utf-8")
+            self.assertIn("Part A", text)
+            self.assertIn("M1-M0 out of sample", text)
