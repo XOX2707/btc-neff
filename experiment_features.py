@@ -40,8 +40,8 @@ little is lost). Out of sample: log loss, accuracy and AUC for target 1,
 R^2 for target 2, and the per-row M1 - M0 loss difference with a t-value
 on rows thinned to H apart. A trade proxy takes sign(p - 0.5) only when
 |p - 0.5| is above its in-sample 90th percentile, at most once per H bars
-so trades do not overlap, and reports mean bps per trade (with t) against
---cost-bps.
+so trades do not overlap, and reports mean bps per trade (with t) and
+"net", the same minus --cost-bps per round trip.
 
 Standard library only, like the rest of the repo.
 """
@@ -275,7 +275,7 @@ def part_a(rows, ins, oos, tf_names, horizons, cost_bps):
         agree_is = mean([r["fwd"][h]["cont"] for r in ins if h in r["fwd"] and agree(r)])
         lines.append(f"\nH={h}  in-sample plain-agree mean cont {agree_is:+.3f}")
         lines.append(f"{'group':<16}{'part':>5}{'n':>7}{'share':>7}{'cont':>8}{'hit':>7}"
-                     f"{'edge|r|':>9}{'t':>6}{'vsAgree':>9}{'t':>6}{'bps':>8}")
+                     f"{'edge|r|':>9}{'t':>6}{'vsAgree':>9}{'t':>6}{'bps':>8}{'net':>8}")
         for name, pred in groups:
             for part, data in (("in", ins), ("out", oos)):
                 ev = [r for r in data if h in r["fwd"] and pred(r)]
@@ -291,9 +291,9 @@ def part_a(rows, ins, oos, tf_names, horizons, cost_bps):
                     f"{name:<16}{part:>5}{len(ev):>7}{share:>7.3f}{mean(cont):>+8.3f}"
                     f"{mean([1.0 if c > 0 else 0.0 for c in cont]):>7.3f}"
                     f"{mean(e_abs):>+9.3f}{tstat(e_abs):>6.1f}{mean(e_agr):>+9.3f}{tstat(e_agr):>6.1f}"
-                    f"{mean(bps):>+8.1f}" + (" *" if len(ev) < 30 else "")
+                    f"{mean(bps):>+8.1f}{mean(bps) - cost_bps:>+8.1f}" + (" *" if len(ev) < 30 else "")
                 )
-    lines.append(f"\ncost reference: {cost_bps:.1f} bps round trip")
+    lines.append(f"\nnet = bps - {cost_bps:.1f} bps round trip")
     return lines
 
 
@@ -333,7 +333,7 @@ def part_b(ins, oos, tf_names, horizons, stride, cost_bps, ridge):
     lines = ["", f"### Part B: M0 (past return, |return|, vol on {'/'.join(tf_names)}) "
              f"vs M1 (M0 + n_eff, c_ratio, ER, n_turn and their x move-sign)"]
     lines.append(f"{'H':>3}{'target':>8}{'model':>6}{'n_oos':>7}{'logloss':>9}{'acc':>7}"
-                 f"{'auc':>7}{'R2':>8}{'trades':>8}{'bps/tr':>8}{'t':>6}")
+                 f"{'auc':>7}{'R2':>8}{'trades':>8}{'bps/tr':>8}{'t':>6}{'net':>8}")
     for h in horizons:
         tr = [r for r in ins if h in r["fwd"]][::stride]
         te = [r for r in oos if h in r["fwd"]]
@@ -375,6 +375,7 @@ def part_b(ins, oos, tf_names, horizons, stride, cost_bps, ridge):
                 f"{h:>3}{'dir+mag':>8}{name:>6}{len(te):>7}{mean(ll):>9.4f}"
                 f"{mean([1.0 if (p > 0.5) == (y == 1) else 0.0 for p, y in zip(p_te, y_te)]):>7.3f}"
                 f"{auc(p_te, y_te):>7.3f}{r2:>8.4f}{len(trades):>8}{mean(trades):>+8.2f}{tstat(trades):>6.1f}"
+                f"{mean(trades) - cost_bps:>+8.2f}"
             )
         d_ll = [a - b for a, b in zip(res["M1"]["ll"], res["M0"]["ll"])][::h]
         d_se = [a - b for a, b in zip(res["M1"]["sse"], res["M0"]["sse"])][::h]
@@ -382,7 +383,7 @@ def part_b(ins, oos, tf_names, horizons, stride, cost_bps, ridge):
             f"{h:>3}  M1-M0 out of sample: logloss {mean(d_ll):+.5f} (t {tstat(d_ll):.1f}), "
             f"squared error {mean(d_se):+.5f} (t {tstat(d_se):.1f}); negative = geometry helps"
         )
-    lines.append(f"\ncost reference: {cost_bps:.1f} bps round trip; bps/tr is per trade before cost")
+    lines.append(f"\nbps/tr is per trade before cost; net = bps/tr - {cost_bps:.1f} bps round trip")
     return lines
 
 
