@@ -24,6 +24,7 @@ import neff_offline as off  # noqa: E402
 import backfill_ohlc  # noqa: E402
 import backtest_neff  # noqa: E402
 import export_backtest_web as web  # noqa: E402
+import experiment_transitions as exp  # noqa: E402
 
 FIXTURE_DIR = ROOT / "tests" / "fixtures"
 HIST_FIELDS = [
@@ -666,3 +667,46 @@ if __name__ == "__main__":
         print(f"wrote {FIXTURE_DIR}")
     else:
         unittest.main()
+
+
+class TransitionExperimentTests(unittest.TestCase):
+    def test_thin_keeps_events_h_apart(self):
+        events = [{"n": n} for n in (0, 1, 2, 5, 6, 12)]
+        self.assertEqual([e["n"] for e in exp.thin(events, 3)], [0, 5, 12])
+        self.assertEqual(len(exp.thin(events, 1)), 6)
+
+    def test_continuation_is_signed_by_window_move(self):
+        # A straight up-move: d = +1, the next bar keeps rising, so cont > 0
+        # and nothing moves against it.
+        step = off.BAR_MS["5m"]
+        candles = [{"ts": i * step, "open": 100 + i, "high": 100.5 + i,
+                    "low": 99.5 + i, "close": 100.0 + i, "vol": 0}
+                   for i in range(neff.WINDOW + 2)]
+        i = neff.WINDOW - 1
+        panel = [{"candle_ts": candles[i]["ts"], "state": "normal", "sigma_per_bar": 1.0}]
+        rows = exp.build_rows(panel, candles, "5m", [1], 1.0)
+        self.assertEqual(len(rows), 1)
+        out = rows[0]["out"][1]
+        self.assertEqual(rows[0]["d"], 1.0)
+        self.assertAlmostEqual(out["cont"], 1.0)
+        self.assertEqual(out["mae"], 0.0)
+        self.assertEqual(out["touch"], "with")
+
+    def test_runs_on_fixture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            ohlc = tmp / "ohlc"
+            ohlc.mkdir()
+            shutil.copy(FIXTURE_DIR / "ohlc_tiny.csv", ohlc / "BTC-USDT_5m.csv")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(backtest_neff.main([
+                    "replay", "--bars", "5m", "--ohlc-dir", str(ohlc),
+                    "--out-dir", str(tmp)]), 0)
+                rc = exp.main(["--bars", "5m", "--horizons", "1,3",
+                               "--panel-dir", str(tmp), "--ohlc-dir", str(ohlc),
+                               "--out-dir", str(tmp)])
+            self.assertEqual(rc, 0)
+            text = (tmp / "transitions.txt").read_text(encoding="utf-8")
+            self.assertIn("all bars", text)
+            self.assertIn("out", text)
+            self.assertTrue((tmp / "transitions.csv").exists())
