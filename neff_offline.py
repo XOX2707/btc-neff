@@ -64,12 +64,12 @@ PARITY_TOL = {
     "efficiency_ratio": 5e-5,
 }
 
-# Same cut as neff.label: sharp is raw N_eff < 5. The band below uses the
-# rounded n_eff column, so a value that prints as 5.00 sits in ge_5.
-SHARP_N = 5.0
+# The band splits at neff.state_cuts()["smooth_from"], the random walk's 95%
+# quantile: below it a window is sharp or normal, at or above it smooth or
+# circular. Like neff.label it reads the rounded n_eff column.
 STOP_KS = (0.5, 1.0, 1.5)
 THIN_N = 30
-STATE_ORDER = ["sharp", "normal", "circular", "grinding"]
+STATE_ORDER = ["sharp", "normal", "smooth", "circular"]
 
 RANGE_FIELDS = [
     "bar", "group_kind", "group", "n", "thin",
@@ -780,12 +780,13 @@ def build_hypothesis(panel, candles, bar):
     state_names += sorted(name for name in by_state if name not in STATE_ORDER)
     for name in state_names:
         buckets.append(("state", name, by_state[name]))
-    lt = [s for s in samples if s["n_eff"] < SHARP_N]
-    ge = [s for s in samples if s["n_eff"] >= SHARP_N]
+    cut = neff.state_cuts()["smooth_from"]
+    lt = [s for s in samples if s["n_eff"] < cut]
+    ge = [s for s in samples if s["n_eff"] >= cut]
     if lt:
-        buckets.append(("n_eff_band", "lt_5", lt))
+        buckets.append(("n_eff_band", "lt_q95", lt))
     if ge:
-        buckets.append(("n_eff_band", "ge_5", ge))
+        buckets.append(("n_eff_band", "ge_q95", ge))
     if labels:
         for name in ("low", "mid", "high"):
             chunk = [s for s in samples if s.get("tercile") == name]
@@ -800,15 +801,15 @@ def build_hypothesis(panel, candles, bar):
     contrasts = [
         _contrast(
             samples,
-            lambda s: s["state"] == "sharp",
             lambda s: s["state"] == "normal",
-            "sharp vs normal",
+            lambda s: s["state"] == "smooth",
+            "normal vs smooth",
         ),
         _contrast(
             samples,
-            lambda s: s["n_eff"] < SHARP_N,
-            lambda s: s["n_eff"] >= SHARP_N,
-            "n_eff<5 vs n_eff>=5",
+            lambda s: s["n_eff"] < cut,
+            lambda s: s["n_eff"] >= cut,
+            "n_eff<q95 vs n_eff>=q95",
         ),
     ]
     if labels:

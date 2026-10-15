@@ -80,16 +80,16 @@ details{margin-top:4px} summary{cursor:pointer;color:var(--text-secondary);font-
 <script>
 const BARS=['5m','15m','1H','4H','1D'];
 const COL={'5m':'--s1','15m':'--s2','1H':'--s3','4H':'--s4','1D':'--s5'};
-const STATES=['sharp','normal','circular','grinding'];
-const STATE_COL={sharp:'--s2',normal:'--s1',circular:'--s3',grinding:'--s4'};
+const STATES=['sharp','normal','smooth','circular'];
+const STATE_COL={sharp:'--s2',normal:'--s1',smooth:'--s4',circular:'--s3'};
 const KIND={all:'全部',state:'状态',n_eff_band:'N_eff 分界',n_eff_tercile:'三分位'};
 const GROUP={
-  all:'全部', sharp:'sharp', normal:'normal', circular:'circular', grinding:'grinding',
-  lt_5:'N_eff < 5', ge_5:'N_eff ≥ 5', low:'低', mid:'中', high:'高',
+  all:'全部', sharp:'sharp', normal:'normal', smooth:'smooth', circular:'circular',
+  lt_q95:'N_eff < 随机 95%', ge_q95:'N_eff ≥ 随机 95%', low:'低', mid:'中', high:'高',
 };
 const CONTRAST={
-  'sharp vs normal':'sharp 对 normal',
-  'n_eff<5 vs n_eff>=5':'N_eff < 5 对 ≥ 5',
+  'normal vs smooth':'normal 对 smooth',
+  'n_eff<q95 vs n_eff>=q95':'N_eff 低于对高于随机 95% 分位',
   'tercile low vs high':'三分位 低对高',
 };
 const el=(t,a={},...k)=>{const n=document.createElement(t);for(const[p,v]of Object.entries(a))p==='html'?n.innerHTML=v:n.setAttribute(p,v);k.forEach(c=>n.append(c));return n};
@@ -220,7 +220,7 @@ function parityCard(data){
 
 function stateCard(data){
   const c=card('各周期的状态');
-  c.append(note('状态沿用实盘的 label()：sharp（N_eff < 5）、normal（5–12）、circular（N_eff ≥ 12 且 C > 0.35）、grinding（N_eff ≥ 12 但 C 低）。计数来自面板，不是下一根样本。0 就是没出现。'));
+  c.append(note(cutsText(data)+'计数来自面板，不是下一根样本。0 就是没出现。'));
   const lg=el('div',{class:'legend'});
   STATES.forEach(s=>lg.append(el('span',{},el('i',{class:'sw',style:`background:var(${STATE_COL[s]})`}),s)));
   c.append(lg);
@@ -239,9 +239,18 @@ function stateCard(data){
     ['周期'].concat(STATES),
     (data.bars||[]).map(m=>[m.bar].concat(STATES.map(s=>fmtN(m.states&&m.states[s]||0))))
   ));
-  const none=(data.bars||[]).every(m=>!(m.states&&(m.states.circular||m.states.grinding)));
-  if(none&&(data.bars||[]).length)c.append(note('这次样本里没有 circular，也没有 grinding。缺席不是一种交易状态。'));
+
   return c;
+}
+
+// Cuts come from the summary (neff.state_cuts); the fallback is WINDOW=60, SMOOTH=5.
+function cutsText(data){
+  const c=data&&data.state_cuts||{sharp_below:3.92,smooth_from:4.49,circular_from:4.93};
+  return `状态沿用实盘的 label()，分界是同窗口纯随机游走 N_eff 的分位数：`+
+    `sharp（N_eff < ${c.sharp_below}，比随机 95% 的路径更锯齿）、`+
+    `normal（${c.sharp_below}–${c.smooth_from}，和随机游走分不开）、`+
+    `smooth（${c.smooth_from}–${c.circular_from}，比随机 95% 的路径平滑）、`+
+    `circular（N_eff ≥ ${c.circular_from}，随机游走千次里不到一次）。`;
 }
 
 function cmpBars(rows){
@@ -316,7 +325,7 @@ function glossary(){
     '<b>σ</b> 是该窗口的 <code>sigma_per_bar</code>，和实盘 <code>analyze()</code> 同一字段。<br>'+
     '<b>|Δclose| / σ</b> 下一根收盘相对这一根收盘的绝对变化，除以 σ。<br>'+
     '<b>(high−low) / σ</b> 下一根最高减最低，除以 σ。这一根自己的高低点已经进了路径，不当结果。<br>'+
-    '<b>N_eff &lt; 5</b> 用四舍五入后的 <code>n_eff</code> 列，和 <code>label()</code> 的 sharp 分界同一刀。<br>'+
+    '<b>N_eff 低于 / 高于随机 95%</b> 用四舍五入后的 <code>n_eff</code> 列，切在 <code>label()</code> 的 normal / smooth 分界，也就是 sharp+normal 对 smooth+circular。<br>'+
     '<b>三分位</b> 只在这份样本内部切，不是固定阈值。<br>'+
     '数学没有第二套。离线脚本调用的就是实盘的 <code>neff.analyze</code>。'}));
   return d;

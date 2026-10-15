@@ -202,12 +202,99 @@ def c_null(n_points, trials=400, seed=20260919):
     return _CNULL[n_points]
 
 
-def label(n_kappa, c):
-    if n_kappa < 5:
-        return "sharp"        # 三角形区: 尖锐折点, 趋势在硬转
-    if n_kappa < 12:
-        return "normal"       # 常规波动
-    return "circular" if c > 0.35 else "grinding"  # 高边数: 真圆弧 vs 小幅锯齿
+# Quantiles of N_eff for a pure random walk, used as the state cuts below.
+NULL_QS = (0.05, 0.95, 0.999)
+_NNULL = {}
+
+
+def n_null(n_points, smooth=None, trials=40000, seed=20261015):
+    """N_eff quantiles (NULL_QS) for an iid-increment path, rounded like n_eff.
+
+    Same pipeline as analyze(): normalise by the stdev of the increments,
+    smooth with the centred MA, take the perimeter ratio. Each trial only
+    needs kappa; N is a decreasing function of kappa, so the N quantile at q
+    is n_from_kappa of the kappa quantile at 1 - q. Seeded, so the cuts are
+    the same on every run and in every replay.
+    """
+    smooth = SMOOTH if smooth is None else smooth
+    key = (n_points, smooth)
+    if key in _NNULL:
+        return _NNULL[key]
+    rnd = random.Random(seed)
+    kappas = []
+    for _ in range(trials):
+        d = [rnd.gauss(0, 1) for _ in range(n_points - 1)]
+        sd = stdev(d)
+        y = [0.0]
+        for x in d:
+            y.append(y[-1] + x / sd)
+        kappas.append(path_len(y) / path_len(centered_ma(y, smooth)))
+    kappas.sort()
+    out = []
+    for q in NULL_QS:
+        k = kappas[min(len(kappas) - 1, int((1 - q) * len(kappas)))]
+        out.append(round(n_from_kappa(k), 2))
+    _NNULL[key] = tuple(out)
+    return _NNULL[key]
+
+
+def state_cuts(n_points=None):
+    """The N_eff values where the state changes, for this window and SMOOTH."""
+    q05, q95, q999 = n_null(WINDOW if n_points is None else n_points)
+    return {"sharp_below": q05, "smooth_from": q95, "circular_from": q999}
+
+
+def label(n_eff, n_points=None):
+    """State from the rounded n_eff, against a random walk of the same window.
+
+    The fixed cuts this replaced (N < 5 sharp, N >= 12 and C > 0.35
+    circular) sat outside what a price path can reach: a year of 5m BTC
+    never got past N_eff 7.7, and a noiseless sine with C = 1 only reached
+    11. A random walk already gives N_eff 3.9-5, so the cuts are its
+    quantiles instead, the same way c_ratio puts C against c_null.
+    Uses the rounded value so a history row relabels exactly from its
+    n_eff column.
+    """
+    cuts = state_cuts(n_points)
+    if n_eff < cuts["sharp_below"]:
+        return "sharp"       # 比随机游走还锯齿: 来回折得更密
+    if n_eff < cuts["smooth_from"]:
+        return "normal"      # 和随机游走分不开
+    if n_eff < cuts["circular_from"]:
+        return "smooth"      # 比随机 95% 的路径平滑
+    return "circular"        # 随机游走千里挑一的平滑
+
+
+def relabel_history(path, n_points=None):
+    """Rewrite the state column of a history CSV with the current label().
+
+    Idempotent: the file is only rewritten when a state actually changes.
+    Returns how many rows changed.
+    """
+    path = Path(path)
+    if not path.exists():
+        return 0
+    with path.open(newline="", encoding="utf-8") as f:
+        rd = csv.DictReader(f)
+        fields = rd.fieldnames
+        rows = list(rd)
+    changed = 0
+    for r in rows:
+        try:
+            new = label(float(r["n_eff"]), n_points)
+        except (KeyError, ValueError):
+            continue
+        if r.get("state") != new:
+            r["state"] = new
+            changed += 1
+    if changed:
+        tmp = path.with_name(path.name + ".tmp")
+        with tmp.open("w", newline="", encoding="utf-8") as f:
+            wr = csv.DictWriter(f, fieldnames=fields)
+            wr.writeheader()
+            wr.writerows(rows)
+        tmp.replace(path)
+    return changed
 
 
 def analyze(closes):
@@ -235,9 +322,10 @@ def analyze(closes):
         return round(min(x, 999.0), 2) if math.isfinite(x) else 999.0
 
     cn = c_null(len(w))
+    n_eff = cap(n_kappa)
     return {
         "kappa": round(kappa, 6),
-        "n_eff": cap(n_kappa),
+        "n_eff": n_eff,
         "c_null": round(cn, 5),
         "c_ratio": round(c / cn, 3) if cn > 0 else 0.0,
         "n_turn": cap(n_turn),
@@ -245,7 +333,7 @@ def analyze(closes):
         "efficiency_ratio": round(er, 4),
         "sigma_per_bar": round(sd, 4),
         "last": w[-1],
-        "state": label(n_kappa, c),
+        "state": label(n_eff, len(w)),
     }
 
 
@@ -279,6 +367,7 @@ def main():
         "instruments": {},
         "window_bars": WINDOW,
         "smooth_width": SMOOTH,
+        "state_cuts": state_cuts(),
     }
 
     first = True
@@ -321,6 +410,12 @@ def main():
                     "instrument": inst, "bar": bar,
                     **{k: row[k] for k in COLS[3:]},
                 })
+
+    # Keeps older rows on the current cuts, so the history, the live tiles
+    # and the offline parity check all mean the same thing by a state.
+    n = relabel_history(hist)
+    if n:
+        print(f"relabelled {n} history rows to the current state cuts")
 
 
 if __name__ == "__main__":

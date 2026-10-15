@@ -200,8 +200,8 @@ def contrasts_from_rows(range_rows):
 
     found = []
     pairs = (
-        ("sharp vs normal", "state", "sharp", "normal"),
-        ("n_eff<5 vs n_eff>=5", "n_eff_band", "lt_5", "ge_5"),
+        ("normal vs smooth", "state", "normal", "smooth"),
+        ("n_eff<q95 vs n_eff>=q95", "n_eff_band", "lt_q95", "ge_q95"),
         ("tercile low vs high", "n_eff_tercile", "low", "high"),
     )
     for label, kind, a_name, b_name in pairs:
@@ -338,6 +338,7 @@ def placeholder_summary():
         "stop_note_en": off.STOP_NOTE,
         "window_bars": neff.WINDOW,
         "smooth_width": neff.SMOOTH,
+        "state_cuts": neff.state_cuts(),
         "instrument": None,
         "missing_bars": [],
         "bars": [],
@@ -459,6 +460,7 @@ def build_web(inst, bars, backtest_dir, ohlc_dir, history_path, allow_missing=Fa
         "stop_note_en": off.STOP_NOTE,
         "window_bars": neff.WINDOW,
         "smooth_width": neff.SMOOTH,
+        "state_cuts": neff.state_cuts(),
         "instrument": inst,
         "missing_bars": missing,
         "sources": sources,
