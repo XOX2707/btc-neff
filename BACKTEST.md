@@ -18,6 +18,8 @@
 
 `data/ohlc/` 和 `data/backtest/` 在 `.gitignore` 里。多年的 K 线不要提交。拉一次就会在本地生成。
 
+网页用的摘要在 `data/backtest_web/`，体积小，要提交。`.gitignore` 只排除上面两个目录；`data/backtest_web/` 是另一个路径，否定规则写在后面，避免以后加宽 `data/` 时把它一起藏掉。
+
 ## 命令
 
 仓库根目录，Python 3 标准库，无第三方包。
@@ -68,8 +70,35 @@ OHLC 没下全、但重叠的那些 candle 已经对齐时，可以加 `--allow-
 | `data/backtest/hypothesis.txt` | 给人看的表 |
 | `data/backtest/hypothesis_range.csv` | 下一根的 \|Δclose\| 和 high−low |
 | `data/backtest/hypothesis_stop.csv` | 下一根高低点是否碰到 ±k·σ |
+| `data/backtest_web/summary.json` | 给网页的摘要：跨度、根数、状态计数、对账、假设表。要提交 |
+| `data/backtest_web/hypothesis_range.csv` | 同上范围表的小副本，要提交 |
+| `data/backtest_web/hypothesis_stop.csv` | 同上止损存根的小副本，要提交 |
 
 面板里的 `candle_ts` 就是这根 K 线在 OKX 上的开盘时间（毫秒），和历史 CSV 的 `candle_ts` 是同一列。
+
+## 网页
+
+GitHub Pages：<https://xox2707.github.io/btc-neff/backtest.html>（仓库根目录的 `backtest.html`）。实时看板在 <https://xox2707.github.io/btc-neff/>，两页互相链着。
+
+页面只读已提交的 `data/backtest_web/summary.json`。不读 `data/ohlc/`，也不读面板。定时任务 `.github/workflows/neff.yml` 不生成这些文件。页上的数字是某一次导出，和下面「一次更长的样本」那张表同一套默认跨度；若后来又导了一次，以 `summary.json` 为准。
+
+本地回测跑完后刷新摘要（`WINDOW` / `SMOOTH` 要和回放时一致）：
+
+```bash
+python backfill_ohlc.py --inst BTC-USDT --bars 5m,1H,4H
+python backtest_neff.py all --bars 5m,1H,4H
+python export_backtest_web.py
+```
+
+然后提交 `data/backtest_web/`。导出脚本读面板里的 `state` 和 `sigma_per_bar`，假设表重新调用 `neff_offline.build_hypothesis`，不另写公式。OHLC 不在旁边时，改读 `data/backtest/hypothesis_range.csv` 和 `hypothesis_stop.csv`。
+
+没有本地产物、只想让页面说明「还没有样本」时：
+
+```bash
+python export_backtest_web.py --placeholder
+```
+
+这会写明是占位，不会填波动数字。占位不要和一次真实导出混着提交。
 
 ## 对账怎么算过
 
@@ -103,6 +132,8 @@ OHLC 没下全、但重叠的那些 candle 已经对齐时，可以加 `--allow-
 | 4H | 730 天（2024-10-15 .. 2026-10-15） | 4438 | 4215 | 164 | 无 |
 
 和之前约 90 天的样本比，sharp 对 normal 的下一根 `|Δclose|/σ` 中位数之比：5m 从 1.23 到 1.21，1H 从 1.26 到 1.15，4H 从 0.78 到 0.90。5m、1H 的方向没翻，差距略收窄。4H 上「normal 更宽」减弱，`(high−low)/σ` 之比收到 1.01，k=1 的止损触碰率两边都约 0.46。这仍是描述，不是成本优势。
+
+同一天按默认跨度又导出了一份到 `data/backtest_web/`，状态计数与上表相同。实盘历史在那之后又多了一轮快照，所以网页上的对账是 5m 135/135、1H 131/131、4H 121/121，仍是 `PASS`，旧 `c_ratio` 口径仍是 10 行。sharp 对 normal 的下一根 `|Δclose|/σ` 之比是 5m 1.205、1H 1.150、4H 0.899。以后再导出，以页面为准。
 
 ## OKX 失败时
 

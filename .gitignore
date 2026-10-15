@@ -2,3 +2,8 @@ __pycache__/
 *.pyc
 data/ohlc/
 data/backtest/
+
+# Pages summary. `data/backtest/` does not match this directory; the
+# negation keeps the summary tracked if a broader data/ rule appears later.
+!data/backtest_web/
+!data/backtest_web/**

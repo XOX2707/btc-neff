@@ -36,6 +36,10 @@ body{
 h1{font-size:20px;font-weight:500;margin:0 0 2px}
 h2{font-size:15px;font-weight:500;margin:0 0 10px}
 .sub{color:var(--text-secondary);font-size:13px;margin:0 0 18px}
+.nav{font-size:13px;margin:0 0 8px;color:var(--text-secondary)}
+.nav a{color:var(--text-secondary);text-decoration:none}
+.nav a:hover{color:var(--text-primary)}
+.nav a[aria-current=page]{color:var(--text-primary)}
 .card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:12px 14px;border-top:3px solid var(--tc,var(--s1))}
@@ -68,6 +72,7 @@ details{margin-top:4px} summary{cursor:pointer;color:var(--text-secondary);font-
 </style>
 
 <div class="wrap">
+  <p class="nav"><a href="index.html" aria-current="page">实时</a> · <a href="backtest.html">离线回测</a></p>
   <h1>BTC N_eff</h1>
   <p class="sub" id="sub">加载中…</p>
   <div id="app"></div>
