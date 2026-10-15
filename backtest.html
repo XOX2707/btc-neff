@@ -140,11 +140,11 @@ function disclaimerCard(data){
 }
 
 function refreshNote(){
-  const c=card('怎么刷新这页');
+  const c=card('这页怎么更新');
   c.append(el('p',{class:'note',html:
-    '页面只读已提交的 <code>data/backtest_web/summary.json</code>。'+
-    '本地跑完回补和回放之后：<br><code>python export_backtest_web.py</code><br>'+
-    '再把 <code>data/backtest_web/</code> 提交上去。定时任务不跑这条链路。步骤写在仓库的 BACKTEST.md。'}));
+    '和实时页同步：实时任务（约每 30 分钟）每跑完一次，<code>BTC N_eff backtest</code> 工作流就把 K 线补到最新一根已收盘、重放并重新导出 '+
+    '<code>data/backtest_web/summary.json</code>，对账用的也是实时页刚写入的历史。页面每 5 分钟重新读取一次，副标题的「导出于」就是最近一次导出的时间。<br>'+
+    '要手动刷新：Actions → <b>BTC N_eff backtest</b> → Run workflow。步骤写在仓库的 BACKTEST.md。'}));
   return c;
 }
 
@@ -328,7 +328,7 @@ function render(data){
   app.append(disclaimerCard(data));
   if(!data){
     app.append(empty('还没有摘要',
-      '<code>data/backtest_web/summary.json</code> 还没提交。本地跑完回测后执行 <code>python export_backtest_web.py</code>。'));
+      '<code>data/backtest_web/summary.json</code> 还没生成。等实时任务下一次跑完，或者手动触发 Actions → <b>BTC N_eff backtest</b>。'));
     app.append(refreshNote());
     return;
   }

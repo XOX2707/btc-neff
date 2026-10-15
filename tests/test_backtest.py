@@ -378,6 +378,30 @@ class PlanTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             off.parse_bars("2m")
 
+    def test_incremental_resume_point(self):
+        step = off.BAR_MS["5m"]
+        t0 = 1_792_000_000_000
+        rows = [
+            {"ts": t0 + i * step, "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "vol": 0.0}
+            for i in range(200)
+        ]
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "BTC-USDT_5m.csv"
+            until = t0 + 300 * step
+            # No file: full download.
+            self.assertEqual(backfill_ohlc.resume_point(path, t0, until, step, 60), ({}, t0))
+            off.write_ohlc(path, rows)
+            # Span rolled forward by 10 bars: older rows drop, tail is refetched.
+            kept, start = backfill_ohlc.resume_point(path, t0 + 10 * step, until, step, 60)
+            self.assertEqual(min(kept), t0 + 10 * step)
+            self.assertEqual(len(kept), 190)
+            self.assertEqual(start, t0 + 199 * step - 60 * step)
+            # File starts after the requested start: not enough history, full download.
+            self.assertEqual(
+                backfill_ohlc.resume_point(path, t0 - 5 * step, until, step, 60),
+                ({}, t0 - 5 * step),
+            )
+
     def test_dry_run_does_not_fetch(self):
         calls = []
         orig = backfill_ohlc.fetch_page
