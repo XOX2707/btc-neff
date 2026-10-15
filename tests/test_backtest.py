@@ -26,6 +26,7 @@ import backtest_neff  # noqa: E402
 import export_backtest_web as web  # noqa: E402
 import experiment_transitions as exp  # noqa: E402
 import experiment_features as feat  # noqa: E402
+import experiment_execution as ex  # noqa: E402
 
 FIXTURE_DIR = ROOT / "tests" / "fixtures"
 HIST_FIELDS = [
@@ -765,3 +766,55 @@ class FeatureExperimentTests(unittest.TestCase):
             text = (tmp / "features_5m.txt").read_text(encoding="utf-8")
             self.assertIn("Part A", text)
             self.assertIn("M1-M0 out of sample", text)
+
+
+class ExecutionExperimentTests(unittest.TestCase):
+    def _candles(self, rows):
+        step = off.BAR_MS["5m"]
+        flat = [{"ts": i * step, "open": 100.0 + (i % 2), "high": 101.5, "low": 99.5,
+                 "close": 100.0 + (i % 2), "vol": 0} for i in range(neff.WINDOW)]
+        for n, (o, h, l, c) in enumerate(rows):
+            flat.append({"ts": (neff.WINDOW + n) * step, "open": o, "high": h,
+                         "low": l, "close": c, "vol": 0})
+        return flat
+
+    def test_fill_at_limit_gap_fill_and_markout_sign(self):
+        i = neff.WINDOW - 1
+        first = self._candles([])
+        c0 = first[i]["close"]          # sigma 1, so limits at c0 -/+ 0.5
+        bid, ask = c0 - 0.5, c0 + 0.5
+        panel = [{"candle_ts": first[i]["ts"], "state": "normal", "sigma_per_bar": 1.0}]
+        # Opens above the bid, trades down through it: buy fills at the bid.
+        # The high stays under the ask, so the sell rests unfilled.
+        candles = self._candles([(c0, ask - 0.1, bid - 0.5, bid + 0.1),
+                                 (bid + 0.1, bid + 0.4, bid, bid + 0.3)])
+        recs = ex.orders(panel, candles, "5m", [0.5], 1, 0.0, [1])
+        buy = next(r for r in recs if r["side"] == 1)
+        sell = next(r for r in recs if r["side"] == -1)
+        self.assertTrue(buy["filled"])
+        self.assertFalse(sell["filled"])
+        self.assertAlmostEqual(buy["mark"][1], 1e4 * math.log((bid + 0.3) / bid))
+        # Opens below the bid: the fill is at the open.
+        candles = self._candles([(bid - 2.0, bid - 1.5, bid - 2.5, bid - 1.8),
+                                 (bid - 1.8, bid - 1.6, bid - 2.0, bid - 1.7)])
+        recs = ex.orders(panel, candles, "5m", [0.5], 1, 0.0, [1])
+        buy = next(r for r in recs if r["side"] == 1)
+        self.assertAlmostEqual(buy["mark"][1], 1e4 * math.log((bid - 1.7) / (bid - 2.0)))
+        # Requiring the price to trade 2 sigma past the bid blocks the first fill.
+        candles = self._candles([(c0, ask - 0.1, bid - 0.5, bid + 0.1),
+                                 (bid + 0.1, bid + 0.4, bid, bid + 0.3)])
+        recs = ex.orders(panel, candles, "5m", [0.5], 1, 2.0, [1])
+        self.assertFalse(next(r for r in recs if r["side"] == 1)["filled"])
+
+    def test_runs_on_fixture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            shutil.copy(FIXTURE_DIR / "ohlc_tiny.csv", tmp / "BTC-USDT_5m.csv")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(backtest_neff.main([
+                    "replay", "--bars", "5m", "--ohlc-dir", str(tmp), "--out-dir", str(tmp)]), 0)
+                rc = ex.main(["--bars", "5m", "--horizons", "1", "--panel-dir", str(tmp),
+                              "--ohlc-dir", str(tmp), "--out-dir", str(tmp)])
+            self.assertEqual(rc, 0)
+            text = (tmp / "execution.txt").read_text(encoding="utf-8")
+            self.assertIn("verdicts:", text)

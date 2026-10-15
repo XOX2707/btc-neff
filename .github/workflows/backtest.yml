@@ -1,9 +1,11 @@
 name: BTC N_eff backtest
 
-# Keeps backtest.html in step with the live page: every time the live
-# workflow finishes, roll the offline sample forward to the newest closed
-# candle, replay it, and re-export data/backtest_web/ (parity included,
-# against the neff_history.csv that run just wrote).
+# Refreshes backtest.html once per UTC day: roll the offline sample forward
+# to the newest closed candle, replay it, and re-export data/backtest_web/
+# (parity included, against the neff_history.csv the live run just wrote).
+# It is still started by every live run, because that is the reliable clock
+# (GitHub's own schedule fires hours late); the gate below skips the work
+# unless the committed summary is from an earlier UTC day.
 on:
   workflow_run:
     workflows: ['BTC N_eff']
@@ -35,7 +37,29 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
+      # The offline sample is a year of bars; half an hour more changes the
+      # tables in the fourth decimal. A manual run always goes through.
+      - name: Daily gate
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          python3 - >> "$GITHUB_OUTPUT" <<'PY'
+          import json, os, sys
+          from datetime import datetime, timezone
+          today = datetime.now(timezone.utc).date().isoformat()
+          try:
+              with open("data/backtest_web/summary.json", encoding="utf-8") as f:
+                  last = json.load(f).get("generated_at") or ""
+          except (OSError, ValueError):
+              last = ""
+          run = os.environ["EVENT"] == "workflow_dispatch" or last[:10] != today
+          print(f"last export {last or 'none'}, today {today}, run={run}", file=sys.stderr)
+          print(f"run={'true' if run else 'false'}")
+          PY
+
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        if: steps.gate.outputs.run == 'true'
         with:
           python-version: '3.12'
 
@@ -44,30 +68,36 @@ jobs:
       # the tail. One cache entry per UTC day keeps the cache from filling
       # up; a day-old copy still needs only a page or two per bar.
       - name: Cache key
+        if: steps.gate.outputs.run == 'true'
         id: key
         run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        if: steps.gate.outputs.run == 'true'
         with:
           path: data/ohlc
           key: ohlc-${{ env.INST_ID }}-${{ steps.key.outputs.day }}
           restore-keys: ohlc-${{ env.INST_ID }}-
 
       - name: Backfill OHLC
+        if: steps.gate.outputs.run == 'true'
         run: python backfill_ohlc.py --inst "$INST_ID" --bars "$BT_BARS" --incremental
 
       - uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        if: steps.gate.outputs.run == 'true'
         continue-on-error: true
         with:
           path: data/ohlc
           key: ohlc-${{ env.INST_ID }}-${{ steps.key.outputs.day }}
 
       - name: Replay
+        if: steps.gate.outputs.run == 'true'
         run: python backtest_neff.py replay --inst "$INST_ID" --bars "$BT_BARS"
 
       # Parity FAIL does not fail the job: the export records the verdict and
       # the page shows it. Only a missing panel or bad input stops here.
       - name: Export and commit
+        if: steps.gate.outputs.run == 'true'
         run: |
           set -euo pipefail
           git config user.name  "neff-bot"

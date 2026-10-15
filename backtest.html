@@ -142,8 +142,8 @@ function disclaimerCard(data){
 function refreshNote(){
   const c=card('这页怎么更新');
   c.append(el('p',{class:'note',html:
-    '和实时页同步：实时任务（约每 30 分钟）每跑完一次，<code>BTC N_eff backtest</code> 工作流就把 K 线补到最新一根已收盘、重放并重新导出 '+
-    '<code>data/backtest_web/summary.json</code>，对账用的也是实时页刚写入的历史。页面每 5 分钟重新读取一次，副标题的「导出于」就是最近一次导出的时间。<br>'+
+    '每天更新一次：每个 UTC 日里实时任务第一次跑完后（北京时间 8 点之后），<code>BTC N_eff backtest</code> 工作流把 K 线补到最新一根已收盘、重放并重新导出 '+
+    '<code>data/backtest_web/summary.json</code>，对账用的是实时页当时的历史。一年的样本多半小时只会动到小数点后第四位，所以不必跟着实时页每 30 分钟刷新。副标题的「导出于」就是最近一次导出的时间。<br>'+
     '要手动刷新：Actions → <b>BTC N_eff backtest</b> → Run workflow。步骤写在仓库的 BACKTEST.md。'}));
   return c;
 }

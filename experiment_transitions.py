@@ -43,8 +43,8 @@ Overlap: forward windows of nearby events overlap and inflate t. Within
 each event type an event is kept only if it is at least H bars after the
 last kept one. t is mean(edge) / (sd / sqrt(n)) on those thinned events.
 
-Costs: mean cont is also shown in bps of price, next to --cost-bps (a
-round trip). An edge smaller than that is not a trade.
+Costs: mean cont is also shown in bps of price, and "net" is that minus
+--cost-bps (a round trip), i.e. what trading the continuation would keep.
 """
 
 import argparse
@@ -240,7 +240,7 @@ def run_bar(inst, bar, horizons, k, split, panel_dir, ohlc_dir, cost_bps):
         )
         lines.append(
             f"{'group':<22}{'part':>5}{'n':>7}{'cont':>8}{'hit':>7}"
-            f"{'edge|r|':>9}{'t':>6}{'edgeVol':>9}{'t':>6}{'bps':>8}{'mae':>7}{'touchW':>8}"
+            f"{'edge|r|':>9}{'t':>6}{'edgeVol':>9}{'t':>6}{'bps':>8}{'net':>8}{'mae':>7}{'touchW':>8}"
         )
         groups = [("all bars", lambda r: True)]
         groups += [("any->smoother", lambda r: r["event"] and r["dir"] == "smoother"),
@@ -252,20 +252,20 @@ def run_bar(inst, bar, horizons, k, split, panel_dir, ohlc_dir, cost_bps):
                 s = summarise(name, ev, h, base_abs, base_vol)
                 if s is None:
                     continue
-                s.update({"bar": bar, "h": h, "part": part})
+                s.update({"bar": bar, "h": h, "part": part, "net_bps": s["bps"] - cost_bps})
                 out_rows.append(s)
                 flag = " *" if s["n"] < MIN_N else ""
                 lines.append(
                     f"{name:<22}{part:>5}{s['n']:>7}{s['cont']:>+8.3f}{s['hit']:>7.3f}"
                     f"{s['edge_abs']:>+9.3f}{s['t_abs']:>6.1f}{s['edge_vol']:>+9.3f}{s['t_vol']:>6.1f}"
-                    f"{s['bps']:>+8.1f}{s['mae']:>7.2f}{s['touch_with']:>8.3f}{flag}"
+                    f"{s['bps']:>+8.1f}{s['net_bps']:>+8.1f}{s['mae']:>7.2f}{s['touch_with']:>8.3f}{flag}"
                 )
-    lines.append(f"\ncost reference: {cost_bps:.1f} bps per round trip; |bps| below that is not a trade.")
+    lines.append(f"\nnet = bps - {cost_bps:.1f} bps round trip")
     return lines, out_rows
 
 
 FIELDS = ["bar", "h", "part", "name", "n", "cont", "hit", "edge_abs", "t_abs",
-          "edge_vol", "t_vol", "bps", "mae", "touch_with"]
+          "edge_vol", "t_vol", "bps", "net_bps", "mae", "touch_with"]
 
 
 def main(argv=None):
