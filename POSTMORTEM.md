@@ -222,6 +222,8 @@ Error: Process completed with exit code 1.
 
 **阈值是拍的，不是统计出来的。** `sharp<5`、`circular` 要 `N≥12 且 C>0.35` 这些分界线有直觉依据但没有分布检验，数据攒够后应该用实际分位数重新标定。
 
+> 2026-10-15 补记：已经重新标定。一年 5m（约 10.5 万个窗口）的 N_eff 最大只有 7.7，C 最大 0.11，`circular` / `grinding` 一次都没出现；连没有噪声的正弦（C=1）也只到 N_eff≈11。现在的分界是同窗口随机游走 N_eff 的 5%、95%、99.9% 分位（窗口 60、平滑 5 时为 3.92 / 4.49 / 4.93），状态改为 sharp / normal / smooth / circular，C 不再参与分档。见 README 和 BACKTEST.md。
+
 ---
 
 ## 八、现状

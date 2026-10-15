@@ -285,14 +285,23 @@ function tableCard(tf){
   return c;
 }
 
+// Cuts are random-walk quantiles written by neff.py (state_cuts); the
+// fallback is what WINDOW=60, SMOOTH=5 gives.
+function stateText(){
+  const c=(window.LATEST&&window.LATEST.state_cuts)||{sharp_below:3.92,smooth_from:4.49,circular_from:4.93};
+  return '<b>状态</b>按同窗口纯随机游走的 N_eff 分位数分档：'+
+    `sharp (N&lt;${c.sharp_below}，比随机更锯齿) · normal (${c.sharp_below}–${c.smooth_from}，和随机游走分不开) · `+
+    `smooth (${c.smooth_from}–${c.circular_from}，比随机 95% 的路径平滑) · circular (N≥${c.circular_from}，随机游走千次里不到一次)。`;
+}
+
 function glossary(){
   const d=el('details');
   d.innerHTML='<summary>指标含义</summary><p class="note" style="margin-top:8px">'+
   '<b>N_eff</b> = π/√(3(κ−1))，由周长比 κ 反解的等效多边形边数。以居中移动平均为基准的<i>相对</i>量。<br>'+
   '<b>N_turn</b> = 2π/平均|转角|，不依赖基准的<i>绝对</i>量，用于交叉验证。两者数值不会相等，看各自的时间序列变化。<br>'+
-  '<b>C</b> 转向一致性 |Στ|/Σ|τ|：圆弧≈1，锯齿≈0。<b>不能省</b>——噪声和圆弧都会给出很多条边，靠 C 区分。<br>'+
+  '<b>C</b> 转向一致性 |Στ|/Σ|τ|：圆弧≈1，锯齿≈0。真实价格上 C 几乎总在 0.1 以下，和随机游走差不多，所以不参与分档，看 C/随机 倍数即可。<br>'+
   '<b>ER</b> Kaufman 效率比，净位移/总行程。<br>'+
-  '<b>状态</b>：sharp (N&lt;5，尖锐折点) · normal (5–12) · circular (N≥12 且 C&gt;0.35，真平滑单边) · grinding (N≥12 但 C 低，低波动磨人行情)。</p>';
+  stateText()+'</p>';
   return d;
 }
 

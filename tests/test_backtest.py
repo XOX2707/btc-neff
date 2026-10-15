@@ -346,6 +346,38 @@ class HypothesisTests(unittest.TestCase):
         self.assertEqual(hyp["n"], 0)
 
 
+class StateCutTests(unittest.TestCase):
+    def test_cuts_are_random_walk_quantiles(self):
+        cuts = neff.state_cuts(60)
+        self.assertLess(cuts["sharp_below"], cuts["smooth_from"])
+        self.assertLess(cuts["smooth_from"], cuts["circular_from"])
+        # A random walk sits around N_eff 4; the old fixed cuts (5, 12) were
+        # outside this range entirely.
+        self.assertTrue(3.7 < cuts["sharp_below"] < 4.1, cuts)
+        self.assertTrue(4.3 < cuts["smooth_from"] < 4.7, cuts)
+        self.assertTrue(4.7 < cuts["circular_from"] < 5.2, cuts)
+        self.assertEqual(neff.state_cuts(60), cuts)  # seeded: same every call
+
+    def test_label_edges(self):
+        cuts = neff.state_cuts(60)
+        self.assertEqual(neff.label(cuts["sharp_below"] - 0.01, 60), "sharp")
+        self.assertEqual(neff.label(cuts["sharp_below"], 60), "normal")
+        self.assertEqual(neff.label(cuts["smooth_from"], 60), "smooth")
+        self.assertEqual(neff.label(cuts["circular_from"], 60), "circular")
+        self.assertEqual(neff.label(999.0, 60), "circular")
+
+    def test_relabel_history_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "h.csv"
+            shutil.copy(FIXTURE_DIR / "history_tiny.csv", path)
+            text = path.read_text(encoding="utf-8").replace(",smooth", ",sharp")
+            path.write_text(text, encoding="utf-8")
+            self.assertEqual(neff.relabel_history(path, 60), 4)
+            after = path.read_text(encoding="utf-8")
+            self.assertEqual(neff.relabel_history(path, 60), 0)
+            self.assertEqual(path.read_text(encoding="utf-8"), after)
+
+
 class PlanTests(unittest.TestCase):
     def test_days_pad_warmup_and_since_conflicts(self):
         now = 1_792_047_600_000
@@ -574,8 +606,8 @@ class WebExportTests(unittest.TestCase):
             hyp = summary["hypothesis"]["bars"][0]
             self.assertEqual(hyp["source"], "csv")
             self.assertGreater(hyp["n"], 0)
-            sharp = next(c for c in hyp["contrasts"] if c["label"] == "sharp vs normal")
-            self.assertIn("ok", sharp)
+            band = next(c for c in hyp["contrasts"] if c["label"] == "normal vs smooth")
+            self.assertIn("ok", band)
             self.assertTrue((out / "hypothesis_range.csv").exists())
 
     def test_placeholder_writes_no_ratios_and_clears_csv(self):
