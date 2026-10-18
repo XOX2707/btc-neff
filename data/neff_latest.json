@@ -1,20 +1,20 @@
 {
-  "generated_at": "2026-10-18T00:00:45+00:00",
+  "generated_at": "2026-10-18T00:13:04+00:00",
   "instruments": {
     "BTC-USDT": {
       "timeframes": {
         "5m": {
-          "kappa": 1.141451,
-          "n_eff": 5.22,
+          "kappa": 1.146559,
+          "n_eff": 5.14,
           "c_null": 0.01771,
-          "c_ratio": 0.027,
-          "n_turn": 11.38,
-          "consistency": 0.0005,
-          "efficiency_ratio": 0.0043,
-          "sigma_per_bar": 70.1561,
-          "last": 81489.4,
+          "c_ratio": 0.377,
+          "n_turn": 11.11,
+          "consistency": 0.0067,
+          "efficiency_ratio": 0.0523,
+          "sigma_per_bar": 70.7444,
+          "last": 81398.8,
           "state": "circular",
-          "candle_ts": 1792281300000
+          "candle_ts": 1792281900000
         },
         "15m": {
           "kappa": 1.16282,
