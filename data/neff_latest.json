@@ -1,33 +1,33 @@
 {
-  "generated_at": "2026-10-22T22:00:43+00:00",
+  "generated_at": "2026-10-22T22:30:35+00:00",
   "instruments": {
     "BTC-USDT": {
       "timeframes": {
         "5m": {
-          "kappa": 1.226698,
-          "n_eff": 4.3,
+          "kappa": 1.224202,
+          "n_eff": 4.32,
           "c_null": 0.01771,
-          "c_ratio": 0.751,
-          "n_turn": 8.25,
-          "consistency": 0.0133,
-          "efficiency_ratio": 0.1133,
-          "sigma_per_bar": 65.4189,
-          "last": 81485.7,
+          "c_ratio": 1.532,
+          "n_turn": 8.64,
+          "consistency": 0.0271,
+          "efficiency_ratio": 0.0074,
+          "sigma_per_bar": 57.1227,
+          "last": 81379.9,
           "state": "normal",
-          "candle_ts": 1792706100000
+          "candle_ts": 1792707900000
         },
         "15m": {
-          "kappa": 1.264199,
-          "n_eff": 4.05,
+          "kappa": 1.267359,
+          "n_eff": 4.03,
           "c_null": 0.01771,
-          "c_ratio": 0.718,
-          "n_turn": 7.99,
-          "consistency": 0.0127,
-          "efficiency_ratio": 0.1628,
-          "sigma_per_bar": 116.3144,
-          "last": 81485.7,
+          "c_ratio": 0.283,
+          "n_turn": 8.05,
+          "consistency": 0.005,
+          "efficiency_ratio": 0.1717,
+          "sigma_per_bar": 116.4336,
+          "last": 81379.9,
           "state": "normal",
-          "candle_ts": 1792705500000
+          "candle_ts": 1792707300000
         },
         "1H": {
           "kappa": 1.178868,
