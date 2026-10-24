@@ -1,46 +1,46 @@
 {
-  "generated_at": "2026-10-24T22:30:36+00:00",
+  "generated_at": "2026-10-24T23:00:44+00:00",
   "instruments": {
     "BTC-USDT": {
       "timeframes": {
         "5m": {
-          "kappa": 1.260927,
+          "kappa": 1.261238,
           "n_eff": 4.07,
           "c_null": 0.01771,
-          "c_ratio": 1.438,
-          "n_turn": 7.71,
-          "consistency": 0.0255,
-          "efficiency_ratio": 0.1442,
-          "sigma_per_bar": 47.8352,
-          "last": 80505.4,
+          "c_ratio": 0.108,
+          "n_turn": 7.57,
+          "consistency": 0.0019,
+          "efficiency_ratio": 0.1486,
+          "sigma_per_bar": 47.1878,
+          "last": 80602.1,
           "state": "normal",
-          "candle_ts": 1792880700000
+          "candle_ts": 1792882500000
         },
         "15m": {
-          "kappa": 1.184469,
-          "n_eff": 4.67,
+          "kappa": 1.181913,
+          "n_eff": 4.69,
           "c_null": 0.01771,
-          "c_ratio": 1.125,
-          "n_turn": 9.37,
-          "consistency": 0.0199,
-          "efficiency_ratio": 0.0638,
-          "sigma_per_bar": 134.4451,
-          "last": 80505.4,
+          "c_ratio": 0.101,
+          "n_turn": 9.47,
+          "consistency": 0.0018,
+          "efficiency_ratio": 0.0353,
+          "sigma_per_bar": 134.1267,
+          "last": 80602.1,
           "state": "smooth",
-          "candle_ts": 1792880100000
+          "candle_ts": 1792881900000
         },
         "1H": {
-          "kappa": 1.278432,
-          "n_eff": 3.97,
+          "kappa": 1.275262,
+          "n_eff": 3.99,
           "c_null": 0.01771,
-          "c_ratio": 0.592,
-          "n_turn": 7.71,
-          "consistency": 0.0105,
-          "efficiency_ratio": 0.1636,
-          "sigma_per_bar": 226.265,
-          "last": 80419.0,
+          "c_ratio": 1.101,
+          "n_turn": 7.62,
+          "consistency": 0.0195,
+          "efficiency_ratio": 0.1171,
+          "sigma_per_bar": 225.1783,
+          "last": 80602.1,
           "state": "normal",
-          "candle_ts": 1792875600000
+          "candle_ts": 1792879200000
         },
         "4H": {
           "kappa": 1.244993,
