@@ -1,72 +1,72 @@
 {
-  "generated_at": "2026-10-31T15:30:38+00:00",
+  "generated_at": "2026-10-31T16:00:42+00:00",
   "instruments": {
     "BTC-USDT": {
       "timeframes": {
         "5m": {
-          "kappa": 1.255105,
-          "n_eff": 4.11,
-          "c_null": 0.01771,
-          "c_ratio": 1.671,
-          "n_turn": 8.29,
-          "consistency": 0.0296,
-          "efficiency_ratio": 0.0187,
-          "sigma_per_bar": 36.5598,
-          "last": 77441.9,
-          "state": "normal",
-          "candle_ts": 1793460300000
-        },
-        "15m": {
-          "kappa": 1.284837,
-          "n_eff": 3.94,
-          "c_null": 0.01771,
-          "c_ratio": 0.783,
-          "n_turn": 7.68,
-          "consistency": 0.0139,
-          "efficiency_ratio": 0.02,
-          "sigma_per_bar": 61.0865,
-          "last": 77441.9,
-          "state": "normal",
-          "candle_ts": 1793459700000
-        },
-        "1H": {
-          "kappa": 1.175866,
-          "n_eff": 4.76,
-          "c_null": 0.01771,
-          "c_ratio": 1.594,
-          "n_turn": 10.54,
-          "consistency": 0.0282,
-          "efficiency_ratio": 0.1517,
-          "sigma_per_bar": 423.3342,
-          "last": 77378.1,
-          "state": "smooth",
-          "candle_ts": 1793455200000
-        },
-        "4H": {
-          "kappa": 1.209991,
-          "n_eff": 4.43,
-          "c_null": 0.01771,
-          "c_ratio": 0.691,
-          "n_turn": 9.84,
-          "consistency": 0.0122,
-          "efficiency_ratio": 0.2895,
-          "sigma_per_bar": 619.5231,
-          "last": 77572.0,
-          "state": "normal",
-          "candle_ts": 1793433600000
-        },
-        "1D": {
-          "kappa": 1.251385,
+          "kappa": 1.251777,
           "n_eff": 4.13,
           "c_null": 0.01771,
-          "c_ratio": 1.002,
-          "n_turn": 7.76,
-          "consistency": 0.0177,
-          "efficiency_ratio": 0.005,
-          "sigma_per_bar": 1571.7186,
-          "last": 77593.7,
+          "c_ratio": 0.546,
+          "n_turn": 8.36,
+          "consistency": 0.0097,
+          "efficiency_ratio": 0.1068,
+          "sigma_per_bar": 37.0064,
+          "last": 77558.2,
           "state": "normal",
-          "candle_ts": 1793289600000
+          "candle_ts": 1793462100000
+        },
+        "15m": {
+          "kappa": 1.281786,
+          "n_eff": 3.95,
+          "c_null": 0.01771,
+          "c_ratio": 1.473,
+          "n_turn": 7.74,
+          "consistency": 0.0261,
+          "efficiency_ratio": 0.0283,
+          "sigma_per_bar": 60.1677,
+          "last": 77558.2,
+          "state": "normal",
+          "candle_ts": 1793461500000
+        },
+        "1H": {
+          "kappa": 1.172969,
+          "n_eff": 4.79,
+          "c_null": 0.01771,
+          "c_ratio": 0.75,
+          "n_turn": 10.55,
+          "consistency": 0.0133,
+          "efficiency_ratio": 0.1672,
+          "sigma_per_bar": 420.3672,
+          "last": 77558.2,
+          "state": "smooth",
+          "candle_ts": 1793458800000
+        },
+        "4H": {
+          "kappa": 1.215731,
+          "n_eff": 4.38,
+          "c_null": 0.01771,
+          "c_ratio": 0.835,
+          "n_turn": 9.87,
+          "consistency": 0.0148,
+          "efficiency_ratio": 0.2885,
+          "sigma_per_bar": 619.6027,
+          "last": 77558.2,
+          "state": "normal",
+          "candle_ts": 1793448000000
+        },
+        "1D": {
+          "kappa": 1.249232,
+          "n_eff": 4.14,
+          "c_null": 0.01771,
+          "c_ratio": 1.484,
+          "n_turn": 7.82,
+          "consistency": 0.0263,
+          "efficiency_ratio": 0.0042,
+          "sigma_per_bar": 1569.5885,
+          "last": 77558.2,
+          "state": "normal",
+          "candle_ts": 1793376000000
         }
       },
       "errors": {}
