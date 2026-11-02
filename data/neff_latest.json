@@ -1,59 +1,59 @@
 {
-  "generated_at": "2026-11-02T07:30:41+00:00",
+  "generated_at": "2026-11-02T08:00:44+00:00",
   "instruments": {
     "BTC-USDT": {
       "timeframes": {
         "5m": {
-          "kappa": 1.250976,
-          "n_eff": 4.13,
-          "c_null": 0.01771,
-          "c_ratio": 0.86,
-          "n_turn": 7.52,
-          "consistency": 0.0152,
-          "efficiency_ratio": 0.1421,
-          "sigma_per_bar": 51.0542,
-          "last": 78107.6,
-          "state": "normal",
-          "candle_ts": 1793604300000
-        },
-        "15m": {
-          "kappa": 1.220783,
-          "n_eff": 4.34,
-          "c_null": 0.01771,
-          "c_ratio": 1.071,
-          "n_turn": 8.87,
-          "consistency": 0.019,
-          "efficiency_ratio": 0.0066,
-          "sigma_per_bar": 102.1515,
-          "last": 78107.6,
-          "state": "normal",
-          "candle_ts": 1793603700000
-        },
-        "1H": {
-          "kappa": 1.256731,
+          "kappa": 1.255841,
           "n_eff": 4.1,
           "c_null": 0.01771,
-          "c_ratio": 1.158,
-          "n_turn": 7.82,
-          "consistency": 0.0205,
-          "efficiency_ratio": 0.1885,
-          "sigma_per_bar": 151.6737,
-          "last": 78159.9,
+          "c_ratio": 0.998,
+          "n_turn": 7.56,
+          "consistency": 0.0177,
+          "efficiency_ratio": 0.1664,
+          "sigma_per_bar": 52.1525,
+          "last": 78107.5,
           "state": "normal",
-          "candle_ts": 1793599200000
+          "candle_ts": 1793606100000
+        },
+        "15m": {
+          "kappa": 1.221288,
+          "n_eff": 4.34,
+          "c_null": 0.01771,
+          "c_ratio": 0.934,
+          "n_turn": 8.75,
+          "consistency": 0.0165,
+          "efficiency_ratio": 0.011,
+          "sigma_per_bar": 102.4105,
+          "last": 78107.5,
+          "state": "normal",
+          "candle_ts": 1793605500000
+        },
+        "1H": {
+          "kappa": 1.253441,
+          "n_eff": 4.12,
+          "c_null": 0.01771,
+          "c_ratio": 0.771,
+          "n_turn": 7.88,
+          "consistency": 0.0137,
+          "efficiency_ratio": 0.1793,
+          "sigma_per_bar": 151.9567,
+          "last": 78107.5,
+          "state": "normal",
+          "candle_ts": 1793602800000
         },
         "4H": {
-          "kappa": 1.213741,
-          "n_eff": 4.4,
+          "kappa": 1.21705,
+          "n_eff": 4.37,
           "c_null": 0.01771,
-          "c_ratio": 0.316,
-          "n_turn": 10.25,
-          "consistency": 0.0056,
-          "efficiency_ratio": 0.1369,
-          "sigma_per_bar": 599.0689,
-          "last": 78619.9,
+          "c_ratio": 0.975,
+          "n_turn": 10.04,
+          "consistency": 0.0173,
+          "efficiency_ratio": 0.1644,
+          "sigma_per_bar": 601.4946,
+          "last": 78107.5,
           "state": "normal",
-          "candle_ts": 1793577600000
+          "candle_ts": 1793592000000
         },
         "1D": {
           "kappa": 1.236125,
