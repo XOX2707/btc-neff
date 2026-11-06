@@ -1,46 +1,46 @@
 {
-  "generated_at": "2026-11-06T04:30:34+00:00",
+  "generated_at": "2026-11-06T05:00:37+00:00",
   "instruments": {
     "BTC-USDT": {
       "timeframes": {
         "5m": {
-          "kappa": 1.301577,
-          "n_eff": 3.86,
+          "kappa": 1.292758,
+          "n_eff": 3.9,
           "c_null": 0.01771,
-          "c_ratio": 1.215,
-          "n_turn": 7.23,
-          "consistency": 0.0215,
-          "efficiency_ratio": 0.0665,
-          "sigma_per_bar": 107.7836,
-          "last": 75663.9,
+          "c_ratio": 0.084,
+          "n_turn": 7.53,
+          "consistency": 0.0015,
+          "efficiency_ratio": 0.1141,
+          "sigma_per_bar": 97.1924,
+          "last": 75773.0,
           "state": "sharp",
-          "candle_ts": 1793939100000
+          "candle_ts": 1793940900000
         },
         "15m": {
-          "kappa": 1.1565,
-          "n_eff": 5.0,
+          "kappa": 1.162443,
+          "n_eff": 4.92,
           "c_null": 0.01771,
-          "c_ratio": 0.083,
-          "n_turn": 10.39,
-          "consistency": 0.0015,
-          "efficiency_ratio": 0.3745,
-          "sigma_per_bar": 275.3875,
-          "last": 75663.9,
-          "state": "circular",
-          "candle_ts": 1793938500000
+          "c_ratio": 0.468,
+          "n_turn": 10.58,
+          "consistency": 0.0083,
+          "efficiency_ratio": 0.3398,
+          "sigma_per_bar": 275.1633,
+          "last": 75773.0,
+          "state": "smooth",
+          "candle_ts": 1793940300000
         },
         "1H": {
-          "kappa": 1.140384,
+          "kappa": 1.140352,
           "n_eff": 5.23,
           "c_null": 0.01771,
-          "c_ratio": 0.574,
-          "n_turn": 11.07,
-          "consistency": 0.0102,
-          "efficiency_ratio": 0.1028,
-          "sigma_per_bar": 481.9426,
-          "last": 75912.1,
+          "c_ratio": 0.281,
+          "n_turn": 11.01,
+          "consistency": 0.005,
+          "efficiency_ratio": 0.1051,
+          "sigma_per_bar": 482.0831,
+          "last": 75773.0,
           "state": "circular",
-          "candle_ts": 1793934000000
+          "candle_ts": 1793937600000
         },
         "4H": {
           "kappa": 1.173252,
