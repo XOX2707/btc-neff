@@ -1,20 +1,46 @@
 {
-  "generated_at": "2026-11-22T01:31:26+00:00",
+  "generated_at": "2026-11-22T02:00:38+00:00",
   "instruments": {
     "BTC-USDT": {
       "timeframes": {
-        "1H": {
-          "kappa": 1.182927,
-          "n_eff": 4.68,
+        "5m": {
+          "kappa": 1.270977,
+          "n_eff": 4.01,
           "c_null": 0.01771,
-          "c_ratio": 1.011,
-          "n_turn": 10.15,
-          "consistency": 0.0179,
-          "efficiency_ratio": 0.1663,
-          "sigma_per_bar": 626.7088,
-          "last": 60208.1,
+          "c_ratio": 1.763,
+          "n_turn": 8.18,
+          "consistency": 0.0312,
+          "efficiency_ratio": 0.1449,
+          "sigma_per_bar": 51.1977,
+          "last": 60114.7,
+          "state": "normal",
+          "candle_ts": 1795312500000
+        },
+        "15m": {
+          "kappa": 1.139495,
+          "n_eff": 5.25,
+          "c_null": 0.01771,
+          "c_ratio": 0.29,
+          "n_turn": 9.7,
+          "consistency": 0.0051,
+          "efficiency_ratio": 0.3329,
+          "sigma_per_bar": 174.2205,
+          "last": 60114.7,
+          "state": "circular",
+          "candle_ts": 1795311900000
+        },
+        "1H": {
+          "kappa": 1.182074,
+          "n_eff": 4.69,
+          "c_null": 0.01771,
+          "c_ratio": 0.758,
+          "n_turn": 10.1,
+          "consistency": 0.0134,
+          "efficiency_ratio": 0.1522,
+          "sigma_per_bar": 624.3425,
+          "last": 60114.7,
           "state": "smooth",
-          "candle_ts": 1795305600000
+          "candle_ts": 1795309200000
         },
         "4H": {
           "kappa": 1.21881,
@@ -43,10 +69,7 @@
           "candle_ts": 1795190400000
         }
       },
-      "errors": {
-        "5m": "OKX /api/v5/market/candles failed: https://openapi.okx.com -> <HTTPError 429: 'Too Many Requests'>",
-        "15m": "OKX /api/v5/market/candles failed: https://openapi.okx.com -> <HTTPError 429: 'Too Many Requests'>"
-      }
+      "errors": {}
     }
   },
   "window_bars": 60,
