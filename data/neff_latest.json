@@ -1,33 +1,33 @@
 {
-  "generated_at": "2026-11-26T03:00:45+00:00",
+  "generated_at": "2026-11-26T03:30:40+00:00",
   "instruments": {
     "BTC-USDT": {
       "timeframes": {
         "5m": {
-          "kappa": 1.231568,
-          "n_eff": 4.26,
+          "kappa": 1.226535,
+          "n_eff": 4.3,
           "c_null": 0.01771,
-          "c_ratio": 1.07,
-          "n_turn": 8.51,
-          "consistency": 0.019,
-          "efficiency_ratio": 0.1177,
-          "sigma_per_bar": 104.3662,
-          "last": 60708.6,
+          "c_ratio": 1.157,
+          "n_turn": 8.65,
+          "consistency": 0.0205,
+          "efficiency_ratio": 0.117,
+          "sigma_per_bar": 104.0588,
+          "last": 60730.1,
           "state": "normal",
-          "candle_ts": 1795661700000
+          "candle_ts": 1795663500000
         },
         "15m": {
-          "kappa": 1.24371,
-          "n_eff": 4.18,
+          "kappa": 1.241952,
+          "n_eff": 4.19,
           "c_null": 0.01771,
-          "c_ratio": 1.731,
-          "n_turn": 8.63,
-          "consistency": 0.0307,
-          "efficiency_ratio": 0.1947,
-          "sigma_per_bar": 271.5398,
-          "last": 60708.6,
+          "c_ratio": 0.42,
+          "n_turn": 8.42,
+          "consistency": 0.0074,
+          "efficiency_ratio": 0.1842,
+          "sigma_per_bar": 271.5089,
+          "last": 60730.1,
           "state": "normal",
-          "candle_ts": 1795661100000
+          "candle_ts": 1795662900000
         },
         "1H": {
           "kappa": 1.238035,
@@ -54,11 +54,22 @@
           "last": 60458.1,
           "state": "normal",
           "candle_ts": 1795636800000
+        },
+        "1D": {
+          "kappa": 1.243455,
+          "n_eff": 4.18,
+          "c_null": 0.01771,
+          "c_ratio": 0.144,
+          "n_turn": 8.27,
+          "consistency": 0.0026,
+          "efficiency_ratio": 0.3864,
+          "sigma_per_bar": 1544.4336,
+          "last": 58339.9,
+          "state": "normal",
+          "candle_ts": 1795536000000
         }
       },
-      "errors": {
-        "1D": "OKX /api/v5/market/candles failed: https://openapi.okx.com -> <HTTPError 429: 'Too Many Requests'>"
-      }
+      "errors": {}
     }
   },
   "window_bars": 60,
